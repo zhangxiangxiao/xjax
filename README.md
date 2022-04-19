@@ -1,2 +1,2 @@
 # xjax
-Simple framework for neural networks using Jax
+A Simple JAX framework for neural networks
