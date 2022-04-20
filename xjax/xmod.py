@@ -1,7 +1,10 @@
 """
 Common models defined for JAX using xjax.xnn protocol.
 
-A model class is one that
+A model class is one that extends xjax.xnn modules with more functions such as
+`value_and_grad` and `predict`. These functions are stored as function closures
+in class variables, therefore different from standard class functions. In
+particular, these function closures do not work with the `self` parameter.
 """
 
 import jax
