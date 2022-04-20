@@ -35,7 +35,7 @@ def optimizer(func):
         flat_initial_states = [init(leaf) for leaf in flat_initial_params]
         # Add step count to states[0]
         initial_states = (0, flat_initial_states)
-        def update(params, grads, states):
+        def new_update(params, grads, states):
             flat_params = jtree.tree_leaves(params)
             flat_grads = jtree.tree_leaves(grads)
             step, flat_states = states
@@ -45,7 +45,7 @@ def optimizer(func):
             new_params = jtree.tree_unflatten(treedef, flat_new_params)
             new_states = (step + 1, flat_new_states)
             return new_params, new_states
-        return update, initial_states
+        return new_update, initial_states
     return new_func
 
 
@@ -54,7 +54,7 @@ def callable_schedule(schedule):
     if callable(schedule):
         return schedule
     else:
-        return lambda step:  rate
+        return lambda step: schedule
 
 
 @optimizer
@@ -83,5 +83,5 @@ def Momentum(rate=0.1, coeff=0.9, decay=0):
         grads = grads + decay(step) * params
         new_states = coeff(step) * states + grads
         new_params = params - rate(step) * new_states
-        return new_params, new_tates
+        return new_params, new_states
     return init, update

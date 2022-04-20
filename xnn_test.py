@@ -1,5 +1,5 @@
 """
-Unittest for xnn
+Unittests for xnn.
 """
 
 from xjax import xnn
