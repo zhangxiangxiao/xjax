@@ -105,7 +105,7 @@ class GAN(Model):
       gen_loss: the generator loss.
       disc_loss: the discriminator loss.
     """
-    def __init__(self, gen, gen_loss, disc, disc_loss):
+    def __init__(self, gen, disc, gen_loss, disc_loss):
         self.gen = (gen[0], None, None)
         self.disc = (disc[0], None, None)
         self.gen_loss = (gen_loss[0], gen_loss[1], None)
