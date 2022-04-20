@@ -23,12 +23,15 @@ new_params, states = update(params, grads, states, step)
 Note the additional `step` argument compared to the decorated optimizer.
 """
 
+import functools
+
 import jax.tree_util as jtree
 import jax.numpy as jnp
 
 
 def optimizer(func):
     """Turn an optimizer into one that works on pytrees and add step counter."""
+    @functools.wraps(func)
     def new_func(initial_params, *args, **kwargs):
         init, update = func(*args, **kwargs)
         flat_initial_params, treedef = jtree.tree_flatten(initial_params)
