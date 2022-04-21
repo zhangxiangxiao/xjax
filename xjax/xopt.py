@@ -33,6 +33,8 @@ import jax.numpy as jnp
 
 
 OptimizerTuple = namedtuple('OptimizerTuple', ['update', 'states'])
+OptimizerStatesTuple = namedtuple(
+    'OptimizerStatesTuple', ['step', '_1'], rename=True)
 
 
 def optimizer(func):
@@ -43,7 +45,7 @@ def optimizer(func):
         flat_initial_params, treedef = jtree.tree_flatten(initial_params)
         flat_initial_states = [init(leaf) for leaf in flat_initial_params]
         # Add step count to states[0]
-        initial_states = (0, flat_initial_states)
+        initial_states = OptimizerStatesTuple(0, flat_initial_states)
         def wrapped_update(params, grads, states):
             flat_params = jtree.tree_leaves(params)
             flat_grads = jtree.tree_leaves(grads)
@@ -52,7 +54,7 @@ def optimizer(func):
                 flat_params[i], flat_grads[i], flat_states[i], step)
                   for i in range(len(flat_states))))
             new_params = jtree.tree_unflatten(treedef, flat_new_params)
-            new_states = (step + 1, flat_new_states)
+            new_states = OptimizerStatesTuple(step + 1, flat_new_states)
             return new_params, new_states
         return OptimizerTuple(wrapped_update, initial_states)
     return wrapped_func
