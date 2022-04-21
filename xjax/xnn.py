@@ -21,7 +21,7 @@ import jax.nn.initializers as jinit
 import jax.random as jrand
 
 
-Module = namedtuple('Module', ['forward', 'params', 'states'])
+ModuleTuple = namedtuple('Module', ['forward', 'params', 'states'])
 
 
 def Linear(rng, in_dim, out_dim, w_init=jinit.glorot_normal(),
@@ -33,14 +33,14 @@ def Linear(rng, in_dim, out_dim, w_init=jinit.glorot_normal(),
     def forward(params, inputs, states):
         w, b = params
         return jnp.dot(w, inputs) + b, states
-    return Module(forward, initial_params, None)
+    return ModuleTuple(forward, initial_params, None)
 
 
 def Embed(rng, embed_size, embed_dim, embed_init=jinit.normal()):
     initial_params = embed_init(rng, (embed_size, embed_dim))
     def forward(params, inputs, states):
         return jnp.take(params, inputs, axis=0), states
-    return Module(forward, initial_params, None)
+    return ModuleTuple(forward, initial_params, None)
 
 
 def Dropout(rng, p=0.5, mode='train'):
@@ -53,7 +53,7 @@ def Dropout(rng, p=0.5, mode='train'):
             return outputs, new_states
         else:
             return inputs, states
-    return Module(forward, None, rng)
+    return ModuleTuple(forward, None, rng)
 
 
 def SingleInputFunc(func, **kwargs):
@@ -62,7 +62,7 @@ def SingleInputFunc(func, **kwargs):
     stored in kwargs as a Python3 function closure."""
     def forward(params, inputs, states):
         return func(inputs, **kwargs), states
-    return Module(forward, None, None)
+    return ModuleTuple(forward, None, None)
 # Transfer functions
 Abs = partial(SingleInputFunc, jnp.abs)
 Tanh = partial(SingleInputFunc, jnp.tanh)
@@ -141,7 +141,7 @@ def MultiInputFunc(func, **kwargs):
     closure."""
     def forward(params, inputs, states):
         return func(*inputs, **kwargs), states
-    return Module(forward, None, None)
+    return ModuleTuple(forward, None, None)
 # Arithmetic functions
 Add = partial(MultiInputFunc, jnp.add)
 Subtract = partial(MultiInputFunc, jnp.subtract)
@@ -162,7 +162,7 @@ def Sequential(*modules):
             outputs, new_states[i] = forwards[i](params[i], outputs, states[i])
         new_states = type(states)(new_states)
         return outputs, new_states
-    return Module(forward, initial_params, initial_states)
+    return ModuleTuple(forward, initial_params, initial_states)
 
 
 def Parallel(*modules):
@@ -175,7 +175,7 @@ def Parallel(*modules):
         outputs = type(inputs)(outputs)
         new_states = type(states)(new_states)
         return outputs, new_states
-    return Module(forward, initial_params, initial_states)
+    return ModuleTuple(forward, initial_params, initial_states)
 
 
 def SharedParallel(module):
@@ -189,4 +189,4 @@ def SharedParallel(module):
                 params, inputs[i], new_states)
         outputs = type(inputs)(outputs)
         return outputs, new_states
-    return Module(forward, initial_params, initial_states)
+    return ModuleTuple(forward, initial_params, initial_states)

@@ -21,7 +21,8 @@ import jax
 from jax import numpy as jnp
 
 
-Model = namedtuple('Model', ['forward', 'backward', 'params', 'states'])
+ModelTuple = namedtuple(
+    'ModelTuple', ['forward', 'backward', 'params', 'states'])
 
 
 def vjp(forward, params, inputs, states):
@@ -56,7 +57,7 @@ def map_add(tree1, tree2):
     return jax.tree_map(jnp.add, tree1, tree2)
 
 
-def ModuleModel(module):
+def Model(module):
     """Generic model which is simply an xjax.xnn module.
 
     Args:
@@ -78,7 +79,7 @@ def ModuleModel(module):
         grads_outputs = map_ones_like(outputs)
         grads = vjpf(grads_outputs)
         return grads, (None, outputs), states
-    return Model(forward, backward, initial_params, initial_states)
+    return ModelTuple(forward, backward, initial_params, initial_states)
 
 
 def FeedForward(net, loss):
@@ -118,7 +119,7 @@ def FeedForward(net, loss):
         grads_net_outputs = loss_vjpf(grads_loss_outputs)
         grads = net_vjpf(grads_net_outputs)
         return grads, outputs, states
-    return Model(forward, backward, initial_params, initial_states)
+    return ModelTuple(forward, backward, initial_params, initial_states)
 
 
 class GAN():

@@ -30,7 +30,7 @@ import jax.tree_util as jtree
 import jax.numpy as jnp
 
 
-Optimizer = namedtuple('Optimizer', ['update', 'states'])
+OptimizerTuple = namedtuple('OptimizerTuple', ['update', 'states'])
 
 
 def optimizer(func):
@@ -52,7 +52,7 @@ def optimizer(func):
             new_params = jtree.tree_unflatten(treedef, flat_new_params)
             new_states = (step + 1, flat_new_states)
             return new_params, new_states
-        return Optimizer(wrapped_update, initial_states)
+        return OptimizerTuple(wrapped_update, initial_states)
     return wrapped_func
 
 
