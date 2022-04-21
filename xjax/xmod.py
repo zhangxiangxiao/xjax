@@ -1,9 +1,10 @@
 """
 Common models defined for JAX using xjax.xnn protocol.
 
-A model provides 'backward' function in addition to `forward`, `params` and
- `states` as in xjax.xnn. A model function as the following signature:
-forward, backward, params, states = model
+A model is a container of paramterized modules and their losses. It provides a
+'backward' function in addition to `forward`. A model function as the following
+signature:
+forward, backward, initial_params, initial_states = Model(*args, **kwargs)
 
 The `backward` function has the following signature:
 `grads, outputs, new_states = backward(params, inputs, states)`
@@ -47,7 +48,18 @@ def map_add(tree1, tree2):
 
 
 def Model(module):
-    """Generic model which is simply an xjax.xnn module."""
+    """Generic model which is simply an xjax.xnn module.
+
+    Args:
+      module: an xjax.xnn module that has learnable parameters whose outputs are
+        assumed to be loss values.
+
+    Returns:
+      forward: the forward function of module.
+      backward: the backward function defined for module.
+      initial_params: the initial parameters.
+      initial_states: the initial states.
+    """
     forward, initial_params, initial_states = module[0]
     def backward(params, inputs, states):
         vjpf, outputs, states = vjp(forward, params, inputs, states)
@@ -68,8 +80,8 @@ def FeedForward(net, loss):
       forward: the forward function that returns outputs and states. The outputs
         is a tuple of net outputs and loss outputs.
       backward: the backward function.
-      params: the initial parameters from net.
-
+      initial_params: the initial parameters from net.
+      initial_states: the initial states.
     """
     net_forward, initial_params, net_initial_states = net
     loss_forward, loss_params, loss_initial_states = loss
@@ -97,7 +109,7 @@ def FeedForward(net, loss):
     return forward, backward, initial_params, initial_states
 
 
-class GAN(Model):
+class GAN():
     """Generative adversarial networks model.
 
     Args:
@@ -207,7 +219,7 @@ class GAN(Model):
             self._value_and_grad = _value_and_grad
         return self._value_and_grad
 
-class ATNNFAE(Model):
+class ATNNFAE():
     """Adversarially-Trained Normalized Noisy-Feature Auto-Encoder
 
     Args:
