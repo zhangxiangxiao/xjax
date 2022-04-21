@@ -1,8 +1,8 @@
 """
 Deep learning tools library for JAX.
 
-The tools in this module include trainer, tester, serializer, and a Learner
-function to put everything together.
+The tools in this module is based on Learner, which contains the= logic for
+ training, testing, evaluation, and serialization of a deep learning model.
 """
 
 from __future__ import absolute_import
