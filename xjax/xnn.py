@@ -12,6 +12,8 @@ outputs, new_states = forward(params, inputs, states)
 You should use the returned new states for the next call to forward.
 """
 
+from __future__ import absolute_import
+
 from functools import partial
 from collections import namedtuple
 

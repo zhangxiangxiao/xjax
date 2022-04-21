@@ -15,6 +15,8 @@ The `backward` function has the following signature:
 Parameter gradients are stored in `grads`.
 """
 
+from __future__ import absolute_import
+
 from collections import namedtuple
 
 import jax

@@ -23,6 +23,8 @@ new_params, states = update(params, grads, states, step)
 Note the additional `step` argument compared to the decorated optimizer.
 """
 
+from __future__ import absolute_import
+
 from functools import wraps
 from collections import namedtuple
 
