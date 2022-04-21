@@ -1,8 +1,8 @@
 """
 Deep learning tools library for JAX.
 
-The tools in this module is based on Learner, which contains the= logic for
- training, testing, evaluation, and serialization of a deep learning model.
+The tools in this module is based on Learner, which contains the code for
+training, testing, evaluation, and serialization of a deep learning model.
 """
 
 from __future__ import absolute_import
@@ -11,7 +11,6 @@ from collections import namedtuple
 import pickle
 
 import jax
-from xjax import xmod
 
 
 LearnerTuple = namedtuple('LearnerTuple', ['train', 'test', 'states'])
@@ -134,3 +133,21 @@ def load(fd):
 def loads(data):
     """Loads states from bytes."""
     pickle.loads(data)
+
+
+EvaluatorTuple = namedtuple('Evaluator', ['evaluate', 'states'])
+
+
+def Evaluator(module):
+    """Generic evaluator which is simply an xjax.xnn module.
+    Args:
+      module: an xjax.xnn module whose ouputs will be used as evluation outputs.
+
+    Returns:
+      evaluate: the evaluate function.
+      states: the initial states of evaluator.
+    """
+    forward, params, initial_states = module
+    def evaluate(inputs, model_outputs, states):
+        return forward(params, [inputs, model_outputs], states)
+    return EvaluatorTuple(evaluate, initial_states)
