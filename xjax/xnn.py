@@ -43,13 +43,16 @@ def Embed(rng, embed_size, embed_dim, embed_init=jinit.normal()):
     return Module(forward, initial_params, None)
 
 
-def Dropout(rng, p=0.5):
+def Dropout(rng, p=0.5, mode='train'):
     def forward(params, inputs, states):
-        """`states` is actually an rng."""
-        new_states, rng = jrand.split(states)
-        keep = jrand.bernoulli(rng, 1 - p, inputs.shape)
-        outputs = jnp.where(keep, inputs / (1 - p), 0)
-        return outputs, new_states
+        if mode == 'train' and p != 0:
+            """`states` is actually an rng."""
+            new_states, rng = jrand.split(states)
+            keep = jrand.bernoulli(rng, 1 - p, inputs.shape)
+            outputs = jnp.where(keep, inputs / (1 - p), 0)
+            return outputs, new_states
+        else:
+            return inputs, states
     return Module(forward, None, rng)
 
 
