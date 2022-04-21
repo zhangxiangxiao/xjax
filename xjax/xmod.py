@@ -56,7 +56,7 @@ def map_add(tree1, tree2):
     return jax.tree_map(jnp.add, tree1, tree2)
 
 
-def Model(module):
+def ModuleModel(module):
     """Generic model which is simply an xjax.xnn module.
 
     Args:
@@ -71,13 +71,13 @@ def Model(module):
     """
     module_forward, initial_params, initial_states = module[0]
     def forward(params, inputs, states):
-        loss_outputs, new_states = module_forward(params, inputs, states)
-        return (None, loss_states)
+        outputs, states = module_forward(params, inputs, states)
+        return (None, outputs), states
     def backward(params, inputs, states):
         vjpf, outputs, states = vjp(module_forward, params, inputs, states)
         grads_outputs = map_ones_like(outputs)
         grads = vjpf(grads_outputs)
-        return grads, outputs, states
+        return grads, (None, outputs), states
     return Model(forward, backward, initial_params, initial_states)
 
 
