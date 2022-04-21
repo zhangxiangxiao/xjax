@@ -1,43 +1,41 @@
 """
 Common models defined for JAX using xjax.xnn protocol.
 
-A model class is one that extends xjax.xnn modules with more functions such as
-`value_and_grad` and `predict`. These functions are stored as function closures
-in class variables, therefore different from standard class functions. In
-particular, these function closures do not work with the `self` parameter.
+A model provides 'backward' function in addition to `forward`, `params` and
+ `states` as in xjax.xnn. A model function as the following signature:
+forward, backward, params, states = model
+
+The `backward` function has the following signature:
+`grads, outputs, new_states = backward(params, inputs, states)`
+Parameter gradients are stored in `grads`.
 """
 
 import jax
 from jax import numpy as jnp
 
 
-def backward(forward, params, inputs, states):
-    """jax.vjp against params and inputs of forward."""
-    def _forward(_params, _inputs):
-        return forward(_params, _inputs, states)
-    return jax.vjp(_forward, params, inputs, has_aux=True)
-
-
-def backward_params(forward, params, inputs, states):
+def vjp(forward, params, inputs, states):
     """jax.vjp against the params of forward."""
     def _forward(_params):
         return forward(_params, inputs, states)
-    return jax.vjp(_forward, params, has_aux=True)
+    outputs, vjpf, states = jax.vjp(_forward, params, has_aux=True)
+    return vjpf, outputs, states
 
 
-def backward_inputs(forward, params, inputs, states):
+def vjp_full(forward, params, inputs, states):
+    """jax.vjp against params and inputs of forward."""
+    def _forward(_params, _inputs):
+        return forward(_params, _inputs, states)
+    outputs, vjp, states = jax.vjp(_forward, params, inputs, has_aux=True)
+    return vjpf, outputs, states
+
+
+def vjp_inputs(forward, params, inputs, states):
     """jax.vjp against the inputs of forward."""
     def _forward(_inputs):
         return forward(params, _inputs, states)
-    return jax.vjp(_forward, inputs, has_aux=True)
-
-
-def backward_none(forward, params, inputs, states):
-    """Pretend to do jax.vjp but the backward function does nothing."""
-    def _backward():
-        return
-    outputs, states = forward(params, inputs, states)
-    return outputs, _backward, states
+    outputs, vjpf, states = jax.vjp(_forward, inputs, has_aux=True)
+    return vjpf, outputs, states
 
 
 def map_ones_like(tree):
@@ -48,81 +46,55 @@ def map_add(tree1, tree2):
     return jax.tree_map(jnp.add, tree1, tree2)
 
 
-class Model:
+def Model(module):
     """Generic model which is simply an xjax.xnn module."""
-    def __init__(self, module):
-        self.forward, self.params, self.states = module
-
-        # Delayed evaluation for properties
-        self._value_and_grad = None
-        self._grad = None
-
-    def __iter__(self):
-        yield self.forward
-        yield self.params
-        yield self.states
-
-    @property
-    def value_and_grad(self):
-        if self._value_and_grad == None:
-            self._value_and_grad = jax.value_and_grad(
-                self.forward, has_aux=True)
-        return self._value_and_grad
-
-    @property
-    def grad(self):
-        if self._grad == None:
-            value_and_grad = self.value_and_grad
-            def _grad(*args, **kwargs):
-                ((outputs, states), grads) = value_and_grad(*args, **kwargs)
-                return (grads, states)
-        return self._grad
+    forward, initial_params, initial_states = module[0]
+    def backward(params, inputs, states):
+        vjpf, outputs, states = vjp(forward, params, inputs, states)
+        grads_outputs = map_ones_like(outputs)
+        grads = vjpf(grads_outputs)
+        return grads, outputs, states
+    return forward, backward, initial_params, initial_states
 
 
-class FeedForward(Model):
+def FeedForward(net, loss):
     """Feedforward model.
 
     Args:
       net: an xjax.xnn module that has learnable parameters.
-      loss: an xjax.xnn module that is used as a loss. Its parameters are not
-        used in either forward or grad.
+      loss: an xjax.xnn module that is used as a loss.
+
+    Returns:
+      forward: the forward function that returns outputs and states. The outputs
+        is a tuple of net outputs and loss outputs.
+      backward: the backward function.
+      params: the initial parameters from net.
+
     """
-    def __init__(self, net, loss):
-        self.net = (net[0], None, None)
-        self.loss = (loss[0], loss[1], None)
-        self.params = net[1]
-        self.states = (net[2], loss[2])
-
-        self._predict = None
-        self._forward = None
-        self._grad = None
-        self._value_and_grad = None
-
-    @property
-    def predict(self):
-        if self._predict == None:
-            net_forward = self.net[0]
-            def _predict(params, inputs, states):
-                net_states, loss_states = states
-                net_outputs, net_states = net_forward(
-                    params, inputs, net_states)
-                return net_outputs, (net_states, loss_states)
-            self._predict = _predict
-        return self._predict
-
-    @property
-    def forward(self):
-        if self._forward == None:
-            predict = self.predict
-            loss_forward, loss_params = self.loss[0], self.loss[1]
-            def _forward(params, inputs, states):
-                net_outputs, states = predict(params, inputs, states)
-                net_states, loss_states = states
-                loss_outputs, loss_states = loss_forward(
-                    loss_params, net_outputs, loss_states)
-                return loss_outputs, (net_states, loss_states)
-            self._forward = _forward
-        return self._forward
+    net_forward, initial_params, net_initial_states = net
+    loss_forward, loss_params, loss_initial_states = loss
+    initial_states = (net_initial_states, loss_initial_states)
+    def forward(params, inputs, states):
+        net_states, loss_states = states
+        net_outputs, net_states = net_forward(params, inputs, net_states)
+        loss_outputs, loss_states = loss_forward(
+            loss_params, net_outputs, loss_states)
+        return (net_outputs, loss_outputs), (net_states, loss_states)
+    def backward(params, inputs, states):
+        # Forward propagate and build backward graph.
+        net_states, loss_states = states
+        net_vjpf, net_outputs, net_states = vjp(
+            net_forward, params, inputs, net_states)
+        loss_vjpf, loss_outputs, loss_states = vjp_inputs(
+            loss_forward, loss_params, net_outputs, loss_states)
+        outputs = (net_outputs, loss_outputs)
+        states = (net_states, loss_states)
+        # Backward propagate through loss.
+        grads_loss_outputs = map_ones_like(loss_outputs)
+        grads_net_outputs = loss_vjpf(grads_loss_outputs)
+        grads = net_vjpf(grads_net_outputs)
+        return grads, outputs, states
+    return forward, backward, initial_params, initial_states
 
 
 class GAN(Model):
