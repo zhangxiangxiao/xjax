@@ -6,13 +6,22 @@ A model is a container of paramterized modules and their losses. It provides a
 signature:
 forward, backward, initial_params, initial_states = Model(*args, **kwargs)
 
+The `forward` function has the following signature:
+`(net_outputs, loss_outputs), new_states = forward(params, inputs, states)'
+`net_outputs` may be `None` if it does not exist or is not accessible.
+
 The `backward` function has the following signature:
-`grads, outputs, new_states = backward(params, inputs, states)`
+`grads, (net_outputs, loss_outputs), new_states = backward(params, inputs, states)`
 Parameter gradients are stored in `grads`.
 """
 
+from collections import namedtuple
+
 import jax
 from jax import numpy as jnp
+
+
+Model = namedtuple('Model', ['forward', 'backward', 'params', 'states'])
 
 
 def vjp(forward, params, inputs, states):
@@ -60,13 +69,16 @@ def Model(module):
       initial_params: the initial parameters.
       initial_states: the initial states.
     """
-    forward, initial_params, initial_states = module[0]
+    module_forward, initial_params, initial_states = module[0]
+    def forward(params, inputs, states):
+        loss_outputs, new_states = module_forward(params, inputs, states)
+        return (None, loss_states)
     def backward(params, inputs, states):
-        vjpf, outputs, states = vjp(forward, params, inputs, states)
+        vjpf, outputs, states = vjp(module_forward, params, inputs, states)
         grads_outputs = map_ones_like(outputs)
         grads = vjpf(grads_outputs)
         return grads, outputs, states
-    return forward, backward, initial_params, initial_states
+    return Model(forward, backward, initial_params, initial_states)
 
 
 def FeedForward(net, loss):
@@ -106,11 +118,12 @@ def FeedForward(net, loss):
         grads_net_outputs = loss_vjpf(grads_loss_outputs)
         grads = net_vjpf(grads_net_outputs)
         return grads, outputs, states
-    return forward, backward, initial_params, initial_states
+    return Model(forward, backward, initial_params, initial_states)
 
 
 class GAN():
     """Generative adversarial networks model.
+    TODO: Convert into Model named tuple.
 
     Args:
       gen: the generator module.
@@ -221,6 +234,7 @@ class GAN():
 
 class ATNNFAE():
     """Adversarially-Trained Normalized Noisy-Feature Auto-Encoder
+    TODO: Convert to Model named tuple
 
     Args:
       enc: the encoder module.

@@ -23,22 +23,26 @@ new_params, states = update(params, grads, states, step)
 Note the additional `step` argument compared to the decorated optimizer.
 """
 
-import functools
+from functools import wraps
+from collections import namedtuple
 
 import jax.tree_util as jtree
 import jax.numpy as jnp
 
 
+Optimizer = namedtuple('Optimizer', ['update', 'states'])
+
+
 def optimizer(func):
     """Turn an optimizer into one that works on pytrees and add step counter."""
-    @functools.wraps(func)
-    def new_func(initial_params, *args, **kwargs):
+    @wraps(func)
+    def wrapped_func(initial_params, *args, **kwargs):
         init, update = func(*args, **kwargs)
         flat_initial_params, treedef = jtree.tree_flatten(initial_params)
         flat_initial_states = [init(leaf) for leaf in flat_initial_params]
         # Add step count to states[0]
         initial_states = (0, flat_initial_states)
-        def new_update(params, grads, states):
+        def wrapped_update(params, grads, states):
             flat_params = jtree.tree_leaves(params)
             flat_grads = jtree.tree_leaves(grads)
             step, flat_states = states
@@ -48,8 +52,8 @@ def optimizer(func):
             new_params = jtree.tree_unflatten(treedef, flat_new_params)
             new_states = (step + 1, flat_new_states)
             return new_params, new_states
-        return new_update, initial_states
-    return new_func
+        return Optimizer(wrapped_update, initial_states)
+    return wrapped_func
 
 
 def callable_schedule(schedule):

@@ -13,11 +13,15 @@ You should use the returned new states for the next call to forward.
 """
 
 from functools import partial
+from collections import namedtuple
 
 import jax.numpy as jnp
 import jax.nn as jnn
 import jax.nn.initializers as jinit
 import jax.random as jrand
+
+
+Module = namedtuple('Module', ['forward', 'params', 'states'])
 
 
 def Linear(rng, in_dim, out_dim, w_init=jinit.glorot_normal(),
@@ -29,14 +33,14 @@ def Linear(rng, in_dim, out_dim, w_init=jinit.glorot_normal(),
     def forward(params, inputs, states):
         w, b = params
         return jnp.dot(w, inputs) + b, states
-    return forward, initial_params, None
+    return Module(forward, initial_params, None)
 
 
 def Embed(rng, embed_size, embed_dim, embed_init=jinit.normal()):
     initial_params = embed_init(rng, (embed_size, embed_dim))
     def forward(params, inputs, states):
         return jnp.take(params, inputs, axis=0), states
-    return forward, initial_params, None
+    return Module(forward, initial_params, None)
 
 
 def Dropout(rng, p=0.5, mode='train'):
@@ -51,7 +55,7 @@ def Dropout(rng, p=0.5, mode='train'):
             new_states = states
             outputs = inputs
         return outputs, new_states
-    return forward, None, initial_states
+    return Module(forward, None, initial_states)
 
 
 def SingleInputFunc(func, **kwargs):
@@ -60,7 +64,7 @@ def SingleInputFunc(func, **kwargs):
     stored in kwargs as a Python3 function closure."""
     def forward(params, inputs, states):
         return func(inputs, **kwargs), states
-    return forward, None, None
+    return Module(forward, None, None)
 # Transfer functions
 Abs = partial(SingleInputFunc, jnp.abs)
 Tanh = partial(SingleInputFunc, jnp.tanh)
@@ -139,7 +143,7 @@ def MultiInputFunc(func, **kwargs):
     closure."""
     def forward(params, inputs, states):
         return func(*inputs, **kwargs), states
-    return forward, None, None
+    return Module(forward, None, None)
 # Arithmetic functions
 Add = partial(MultiInputFunc, jnp.add)
 Subtract = partial(MultiInputFunc, jnp.subtract)
@@ -160,7 +164,7 @@ def Sequential(*modules):
             outputs, new_states[i] = forwards[i](params[i], outputs, states[i])
         new_states = type(states)(new_states)
         return outputs, new_states
-    return forward, initial_params, initial_states
+    return Module(forward, initial_params, initial_states)
 
 
 def Parallel(*modules):
@@ -173,7 +177,7 @@ def Parallel(*modules):
         outputs = type(inputs)(outputs)
         new_states = type(states)(new_states)
         return outputs, new_states
-    return forward, initial_params, initial_states
+    return Module(forward, initial_params, initial_states)
 
 
 def SharedParallel(module):
@@ -187,4 +191,4 @@ def SharedParallel(module):
                 params, inputs[i], new_states)
         outputs = type(inputs)(outputs)
         return outputs, new_states
-    return forward, initial_params, initial_states
+    return Module(forward, initial_params, initial_states)
