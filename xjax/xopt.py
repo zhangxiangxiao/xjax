@@ -25,9 +25,10 @@ Note the additional `step` argument compared to the decorated optimizer.
 
 from __future__ import absolute_import
 
-from functools import wraps
+from functools import wraps, partial
 from collections import namedtuple
 
+import jax
 import jax.tree_util as jtree
 import jax.numpy as jnp
 
@@ -37,27 +38,27 @@ OptimizerStatesTuple = namedtuple(
     'OptimizerStatesTuple', ['step', '_1'], rename=True)
 
 
-def optimizer(func):
-    """Turn an optimizer into one that works on pytrees and add step counter."""
-    @wraps(func)
-    def wrapped_func(initial_params, *args, **kwargs):
-        init, update = func(*args, **kwargs)
-        flat_initial_params, treedef = jtree.tree_flatten(initial_params)
-        flat_initial_states = [init(leaf) for leaf in flat_initial_params]
-        # Add step count to states[0]
-        initial_states = OptimizerStatesTuple(0, flat_initial_states)
-        def wrapped_update(params, grads, states):
-            flat_params = jtree.tree_leaves(params)
-            flat_grads = jtree.tree_leaves(grads)
-            step, flat_states = states
-            flat_new_params, flat_new_states = zip(*(update(
-                flat_params[i], flat_grads[i], flat_states[i], step)
-                  for i in range(len(flat_states))))
-            new_params = jtree.tree_unflatten(treedef, flat_new_params)
-            new_states = OptimizerStatesTuple(step + 1, flat_new_states)
-            return new_params, new_states
-        return OptimizerTuple(wrapped_update, initial_states)
-    return wrapped_func
+def tree_init(init):
+    """Make init function work with pytrees and add step counter."""
+    @wraps(init)
+    def wrapped_init(initial_params):
+        return (0, jax.tree_map(init, initial_params))
+    return wrapped_init
+
+def tree_update(update):
+    """Make an update function work with pytrees and use step counter"""
+    @wraps(update)
+    def wrapped_update(params, grads, states):
+        step = states[0]
+        flat_params, treedef = jtree.tree_flatten(params)
+        flat_grads = treedef.flatten_up_to(grads)
+        flat_states = treedef.flatten_up_to(states[1])
+        flat_new_params, flat_new_states = zip(*(update(
+            step, *leaf) for leaf in zip(flat_params, flat_grads, flat_states)))
+        new_params = treedef.unflatten(flat_new_params)
+        new_states = (step + 1, treedef.unflatten(flat_new_states))
+        return new_params, new_states
+    return wrapped_update
 
 
 def callable_schedule(schedule):
@@ -68,31 +69,35 @@ def callable_schedule(schedule):
         return lambda step: schedule
 
 
-@optimizer
-def SGD(rate=0.1, decay=0):
+def SGD(initial_params, rate=0.1, decay=0):
     """SGD optimizer."""
     rate = callable_schedule(rate)
     decay = callable_schedule(decay)
-    def init(initial_params):
-        return None
-    def update(params, grads, states, step):
+    @tree_update
+    def update(step, params, grads, states):
         grads = grads + decay(step) * params
         new_params = params - rate(step) * grads
         return new_params, states
-    return init, update
+    @tree_init
+    def init(initial_params):
+        return None
+    initial_states = init(initial_params)
+    return update, initial_states
 
 
-@optimizer
-def Momentum(rate=0.1, coeff=0.9, decay=0):
+def Momentum(initial_params, rate=0.1, coeff=0.9, decay=0):
     """SGD with momentum optimizer."""
     rate = callable_schedule(rate)
     coeff = callable_schedule(coeff)
     decay = callable_schedule(decay)
-    def init(initial_params):
-        return jnp.zeros_like(initial_params)
-    def update(params, grads, states, step):
+    @tree_update
+    def update(step, params, grads, states):
         grads = grads + decay(step) * params
         new_states = coeff(step) * states + grads
         new_params = params - rate(step) * new_states
         return new_params, new_states
-    return init, update
+    @tree_init
+    def init(initial_params):
+        return jnp.zeros_like(initial_params)
+    initial_states = init(initial_params)
+    return update, initial_states
