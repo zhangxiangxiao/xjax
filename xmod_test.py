@@ -101,26 +101,79 @@ class ModelTest(absltest.TestCase):
 class GANTest(absltest.TestCase):
     def setUp(self):
         # A Logic Named Joe
-        rng1, rng2, rng3, rng4, self.rng = jrand.split(jrand.PRNGKey(1946), 5)
+        rng1, rng2, rng3, rng4, rng5 = jrand.split(jrand.PRNGKey(1946), 5)
         # Generator is a 2-layer MLP.
         self.gen = xnn.Sequential(
             xnn.Normal(rng1, shape=(2,)),
             xnn.Linear(rng2, 2, 4), xnn.ReLU(),
             xnn.Linear(rng3, 4, 8))
         # Discriminator is a linear model.
-        self.disc = xnn.Linear(rng3, 8, 1)
+        self.disc = xnn.Linear(rng4, 8, 1)
         # Generator loss motivates the fake output to zero.
         self.gen_loss = xnn.Norm()
         # Discriminator loss motiviates the real output to zero, fake to -inf.
-        self.disc_loss = xnn.Parallel(xnn.Norm(), xnn.Identity)
+        self.disc_loss = xnn.Sequential(
+            xnn.Parallel(xnn.Norm(), xnn.Identity()),
+            xnn.Add())
         # Build the GAN model
-        self.model = xmod.GAN(self.net, self.loss)
+        self.model = xmod.GAN(
+            self.gen, self.disc, self.gen_loss, self.disc_loss)
         # inputs = [net_inputs, net_targets].
-        self.inputs = [jrand.normal(rng4, shape=(8,))]
+        self.inputs = jrand.normal(rng5, shape=(8,))
+
     def test_forward(self):
-        pass
+        forward, _, params, states = self.model
+        inputs = self.inputs
+        ([gen_outputs, [real_outputs, fake_outputs]],
+         [gen_loss_outputs, disc_loss_outputs], states) = forward(
+             params, inputs, states)
+        gen_forward, gen_params, gen_states = self.gen
+        ref_gen_outputs, gen_states = gen_forward(gen_params, None, gen_states)
+        self.assertTrue(jnp.allclose(ref_gen_outputs, gen_outputs))
+        disc_forward, disc_params, disc_states = self.disc
+        ref_real_outputs, disc_states = disc_forward(
+            disc_params, inputs, disc_states)
+        self.assertTrue(jnp.allclose(ref_real_outputs, real_outputs))
+        ref_fake_outputs, disc_states = disc_forward(
+            disc_params, gen_outputs, disc_states)
+        self.assertTrue(jnp.allclose(ref_fake_outputs, fake_outputs))
+        gen_loss_forward, gen_loss_params, gen_loss_states = self.gen_loss
+        ref_gen_loss_outputs, gen_loss_states = gen_loss_forward(
+            gen_loss_params, ref_fake_outputs, gen_loss_states)
+        self.assertTrue(jnp.allclose(ref_gen_loss_outputs, gen_loss_outputs))
+        disc_loss_forward, disc_loss_params, disc_loss_states = self.disc_loss
+        disc_outputs = [ref_real_outputs, ref_fake_outputs]
+        ref_disc_loss_outputs, disc_loss_states = disc_loss_forward(
+            disc_loss_params, disc_outputs, disc_loss_states)
+        self.assertTrue(jnp.allclose(ref_disc_loss_outputs, disc_loss_outputs))
+
     def test_backward(self):
-        pass
+        forward, backward, params, states = self.model
+        inputs = self.inputs
+        [gen_grads, disc_grads], net_outputs, loss_outputs, _ = backward(
+            params, inputs, states)
+        ref_net_outputs, ref_loss_outputs, _ = forward(
+            params, inputs, states)
+        jax.tree_map(lambda x, y: self.assertTrue(jnp.allclose(x, y)),
+                     ref_net_outputs, net_outputs)
+        jax.tree_map(lambda x, y: self.assertTrue(jnp.allclose(x, y)),
+                     ref_loss_outputs, loss_outputs)
+        def ref_forward_gen(_params, _inputs, _states):
+            _, [_gen_loss_outputs, _disc_loss_outputs], _ = forward(
+                _params, _inputs, _states)
+            return jnp.sum(_gen_loss_outputs)
+        ref_backward_gen = jax.grad(ref_forward_gen)
+        ref_gen_grads, _ = ref_backward_gen(params, inputs, states)
+        jax.tree_map(lambda x, y: self.assertTrue(jnp.allclose(x, y)),
+                     ref_gen_grads, gen_grads)
+        def ref_forward_disc(_params, _inputs, _states):
+            _, [_gen_loss_outputs, _disc_loss_outputs], _ = forward(
+                _params, _inputs, _states)
+            return jnp.sum(_disc_loss_outputs)
+        ref_backward_disc = jax.grad(ref_forward_disc)
+        _, ref_disc_grads = ref_backward_disc(params, inputs, states)
+        jax.tree_map(lambda x, y: self.assertTrue(jnp.allclose(x, y)),
+                     ref_disc_grads, disc_grads)
 
 
 if __name__ == '__main__':

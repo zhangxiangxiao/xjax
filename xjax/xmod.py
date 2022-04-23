@@ -134,7 +134,7 @@ def Model(net, loss):
     return ModelTuple(forward, backward, initial_params, initial_states)
 
 
-def GAN(self, gen, disc, gen_loss, disc_loss):
+def GAN(gen, disc, gen_loss, disc_loss):
     """Generative adversarial networks model.
 
     Args:
@@ -158,7 +158,7 @@ def GAN(self, gen, disc, gen_loss, disc_loss):
     def forward(params, inputs, states):
         gen_params, disc_params = params
         gen_states, disc_states, gen_loss_states, disc_loss_states = states
-        gen_outputs, gen_states = gen_forward(gen_params, inputs, gen_states)
+        gen_outputs, gen_states = gen_forward(gen_params, None, gen_states)
         real_outputs, disc_states = disc_forward(
             disc_params, inputs, disc_states)
         fake_outputs, disc_states = disc_forward(
@@ -178,8 +178,8 @@ def GAN(self, gen, disc, gen_loss, disc_loss):
         gen_loss_states, disc_loss_states = states[2], states[3]
         # Forward propagate and build backward graph
         gen_vjpf, gen_outputs, gen_states = vjp(
-            gen_forward, gen_params, inputs, gen_states)
-        disc_vjp_real, real_outputs, disc_states = vjp(
+            gen_forward, gen_params, None, gen_states)
+        disc_vjpf_real, real_outputs, disc_states = vjp(
             disc_forward, disc_params, inputs, disc_states)
         disc_vjpf_fake, fake_outputs, disc_states = vjp_full(
             disc_forward, disc_params, gen_outputs, disc_states)
