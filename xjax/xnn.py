@@ -60,57 +60,57 @@ def Dropout(rng, p=0.5, mode='train'):
     return ModuleTuple(forward, None, rng)
 
 
-def SingleInputFunc(func, **kwargs):
+def SingleInput(func, *args, **kwargs):
     """Layer that feed func with inputs.
     Used for modules that do not have params and states. Hyper-parameters are
     stored in kwargs as a Python3 function closure."""
     def forward(params, inputs, states):
-        return func(inputs, **kwargs), states
+        return func(inputs, *args, **kwargs), states
     return ModuleTuple(forward, None, None)
 # Transfer functions
-Abs = partial(SingleInputFunc, jnp.abs)
-Tanh = partial(SingleInputFunc, jnp.tanh)
-Exp = partial(SingleInputFunc, jnp.exp)
-ReLU = partial(SingleInputFunc, jnn.relu)
-Sigmoid = partial(SingleInputFunc, jnn.sigmoid)
-Softplus = partial(SingleInputFunc, jnn.softplus)
-LogSigmoid = partial(SingleInputFunc, jnn.log_sigmoid)
-Softmax = partial(SingleInputFunc, jnn.softmax)
-LogSoftmax = partial(SingleInputFunc, jnn.log_softmax)
-Standardize = partial(SingleInputFunc, jnn.standardize)
+Abs = partial(SingleInput, jnp.abs)
+Tanh = partial(SingleInput, jnp.tanh)
+Exp = partial(SingleInput, jnp.exp)
+ReLU = partial(SingleInput, jnn.relu)
+Sigmoid = partial(SingleInput, jnn.sigmoid)
+Softplus = partial(SingleInput, jnn.softplus)
+LogSigmoid = partial(SingleInput, jnn.log_sigmoid)
+Softmax = partial(SingleInput, jnn.softmax)
+LogSoftmax = partial(SingleInput, jnn.log_softmax)
+Standardize = partial(SingleInput, jnn.standardize)
 # Reduction functions
-Max = partial(SingleInputFunc, jnp.max)
-Mean = partial(SingleInputFunc, jnp.mean)
-Median = partial(SingleInputFunc, jnp.median)
-Min = partial(SingleInputFunc, jnp.min)
-Prod = partial(SingleInputFunc, jnp.prod)
-Std = partial(SingleInputFunc, jnp.std)
-Sum = partial(SingleInputFunc, jnp.sum)
-Var = partial(SingleInputFunc, jnp.var)
-Norm = partial(SingleInputFunc, jnp.linalg.norm)
-Logsumexp = partial(SingleInputFunc, jnn.logsumexp)
+Max = partial(SingleInput, jnp.max)
+Mean = partial(SingleInput, jnp.mean)
+Median = partial(SingleInput, jnp.median)
+Min = partial(SingleInput, jnp.min)
+Prod = partial(SingleInput, jnp.prod)
+Std = partial(SingleInput, jnp.std)
+Sum = partial(SingleInput, jnp.sum)
+Var = partial(SingleInput, jnp.var)
+Norm = partial(SingleInput, jnp.linalg.norm)
+Logsumexp = partial(SingleInput, jnn.logsumexp)
 # Shape transformation functions
-Transpose = partial(SingleInputFunc, jnp.transpose)
-Reshape = partial(SingleInputFunc, jnp.reshape)
-Repeat = partial(SingleInputFunc, jnp.repeat)
+Transpose = partial(SingleInput, jnp.transpose)
+Reshape = partial(SingleInput, jnp.reshape)
+Repeat = partial(SingleInput, jnp.repeat)
 
 
 # Identity
 def identity(inputs):
     return inputs
-Identity = partial(SingleInputFunc, identity)
+Identity = partial(SingleInput, identity)
 
 
 def mul_const(inputs, const):
     """Multiply by a constant."""
     return inputs * const
-MulConst = partial(SingleInputFunc, mul_const)
+MulConst = partial(SingleInput, mul_const)
 
 
 def add_const(inputs, const):
     """Add a constant."""
     return inputs + const
-AddConst = partial(SingleInputFunc, add_const)
+AddConst = partial(SingleInput, add_const)
 
 
 def group(inputs, ind):
@@ -120,39 +120,50 @@ def group(inputs, ind):
     """
     outputs = jax.tree_map(lambda x: inputs[x], ind)
     return outputs
-Group = partial(SingleInputFunc, group)
+Group = partial(SingleInput, group)
 
 
 def flatten(inputs):
     """Flatten inputs into a list."""
     outputs, _ = jtree.tree_flatten(inputs)
     return outputs
-Flatten = partial(SingleInputFunc, flatten)
+Flatten = partial(SingleInput, flatten)
 
 
 def unpack(inputs):
     """Unpack inputs by assuming it has only one member: `outputs, = inputs.`"""
     outputs, = inputs
     return outputs
-Unpack = partial(SingleInputFunc, unpack)
+Unpack = partial(SingleInput, unpack)
 
 
-def MultiInputFunc(func, **kwargs):
+def MultiInput(func, *args, **kwargs):
     """Layer that applies func with inputs unpacked.
     Used for modules that accept multiple inputs and do not have params or
     states. Hyper-parameters are stored in kwargs as a Python3 function
     closure."""
     def forward(params, inputs, states):
-        return func(*inputs, **kwargs), states
+        return func(*inputs, *args, **kwargs), states
     return ModuleTuple(forward, None, None)
 # Arithmetic functions
-Add = partial(MultiInputFunc, jnp.add)
-Subtract = partial(MultiInputFunc, jnp.subtract)
-Multiply = partial(MultiInputFunc, jnp.multiply)
-Divide = partial(MultiInputFunc, jnp.divide)
+Add = partial(MultiInput, jnp.add)
+Subtract = partial(MultiInput, jnp.subtract)
+Multiply = partial(MultiInput, jnp.multiply)
+Divide = partial(MultiInput, jnp.divide)
 # Linear algebra functions
-MatMul = partial(MultiInputFunc, jnp.matmul)
-Dot = partial(MultiInputFunc, jnp.dot)
+MatMul = partial(MultiInput, jnp.matmul)
+Dot = partial(MultiInput, jnp.dot)
+
+
+def Random(func, rng, *args, **kwargs):
+    """Layer that generate random numbers."""
+    def forward(params, inputs, states):
+        rng, states = jrand.split(states)
+        return func(rng, *args, **kwargs), states
+    return ModuleTuple(forward, None, rng)
+Normal = partial(Random, jrand.normal)
+Uniform = partial(Random, jrand.uniform)
+Bernoulli = partial(Random, jrand.bernoulli)
 
 
 def Sequential(*modules):

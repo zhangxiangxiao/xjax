@@ -56,14 +56,14 @@ class DropoutTest(absltest.TestCase):
 
 
 class TransferTest(absltest.TestCase):
-    def template(self, module, func, **kwargs):
+    def template(self, module, func, *args, **kwargs):
         # A Logic Named Joe
         rng = jrand.PRNGKey(1946)
-        forward, params, states = module(**kwargs)
+        forward, params, states = module(*args, **kwargs)
         inputs = jrand.normal(rng, shape=(8,))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((8,), outputs.shape)
-        reference = func(inputs, **kwargs)
+        reference = func(inputs, *args, **kwargs)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
     def test_abs(self):
@@ -98,14 +98,14 @@ class TransferTest(absltest.TestCase):
 
 
 class ReductionTest(absltest.TestCase):
-    def template(self, module, func, **kwargs):
+    def template(self, module, func, *args, **kwargs):
         # A Logic Named Joe
         rng = jrand.PRNGKey(1946)
-        forward, params, states = module(axis=-1, **kwargs)
+        forward, params, states = module(axis=-1, *args, **kwargs)
         inputs = jrand.normal(rng, shape=(8, 4))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((8,), outputs.shape)
-        reference = func(inputs, axis=-1, **kwargs)
+        reference = func(inputs, axis=-1, *args, **kwargs)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
     def test_max(self):
@@ -253,15 +253,15 @@ class UnpackTest(absltest.TestCase):
 
 
 class ArithmeticTest(absltest.TestCase):
-    def template(self, module, func, **kwargs):
+    def template(self, module, func, *args, **kwargs):
         # A Logic Named Joe
         rng1, rng2 = jrand.split(jrand.PRNGKey(1946))
         inputs1 = jrand.normal(rng1, shape=(8,))
         inputs2 = jrand.normal(rng2, shape=(8,))
-        forward, params, states = module(**kwargs)
+        forward, params, states = module(*args, **kwargs)
         outputs, states = forward(params, [inputs1, inputs2], states)
         self.assertEqual((8,), outputs.shape)
-        reference = func(inputs1, inputs2, **kwargs)
+        reference = func(inputs1, inputs2, *args, **kwargs)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
     def test_add(self):
@@ -301,6 +301,28 @@ class DotTest(absltest.TestCase):
         self.assertEqual((8,), outputs.shape)
         reference = jnp.dot(matrix, vector)
         self.assertTrue(jnp.array_equal(reference, outputs))
+
+
+class RandomTest(absltest.TestCase):
+    def template(self, module, func, *args, **kwargs):
+        # A Logic Named Joe
+        rng = jrand.PRNGKey(1946)
+        forward, params, states = module(rng, shape=(8, 4), *args, **kwargs)
+        inputs = None
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((8, 4), outputs.shape)
+        rng, reference_states = jrand.split(rng)
+        reference = func(rng, shape=(8, 4), *args, **kwargs)
+        self.assertTrue(jnp.array_equal(reference, outputs))
+
+    def test_normal(self):
+        return self.template(xnn.Normal, jrand.normal)
+
+    def test_uniform(self):
+        return self.template(xnn.Uniform, jrand.uniform)
+
+    def test_bernoulli(self):
+        return self.template(xnn.Bernoulli, jrand.bernoulli)
 
 
 class SequentialTest(absltest.TestCase):

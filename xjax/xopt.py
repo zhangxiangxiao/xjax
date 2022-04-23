@@ -45,6 +45,7 @@ def tree_init(init):
         return (0, jax.tree_map(init, initial_params))
     return wrapped_init
 
+
 def tree_update(update):
     """Make an update function work with pytrees and use step counter"""
     @wraps(update)

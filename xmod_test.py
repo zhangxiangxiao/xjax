@@ -100,7 +100,23 @@ class ModelTest(absltest.TestCase):
 
 class GANTest(absltest.TestCase):
     def setUp(self):
-        pass
+        # A Logic Named Joe
+        rng1, rng2, rng3, rng4, self.rng = jrand.split(jrand.PRNGKey(1946), 5)
+        # Generator is a 2-layer MLP.
+        self.gen = xnn.Sequential(
+            xnn.Normal(rng1, shape=(2,)),
+            xnn.Linear(rng2, 2, 4), xnn.ReLU(),
+            xnn.Linear(rng3, 4, 8))
+        # Discriminator is a linear model.
+        self.disc = xnn.Linear(rng3, 8, 1)
+        # Generator loss motivates the fake output to zero.
+        self.gen_loss = xnn.Norm()
+        # Discriminator loss motiviates the real output to zero, fake to -inf.
+        self.disc_loss = xnn.Parallel(xnn.Norm(), xnn.Identity)
+        # Build the GAN model
+        self.model = xmod.GAN(self.net, self.loss)
+        # inputs = [net_inputs, net_targets].
+        self.inputs = [jrand.normal(rng4, shape=(8,))]
     def test_forward(self):
         pass
     def test_backward(self):

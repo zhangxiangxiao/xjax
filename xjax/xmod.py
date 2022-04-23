@@ -159,8 +159,10 @@ def GAN(self, gen, disc, gen_loss, disc_loss):
         gen_params, disc_params = params
         gen_states, disc_states, gen_loss_states, disc_loss_states = states
         gen_outputs, gen_states = gen_forward(gen_params, inputs, gen_states)
-        real_outputs, disc_states = disc_forward(disc_params, inputs, disc_states)
-        fake_outputs, disc_states = disc_forward(disc_params, gen_outputs, disc_states)
+        real_outputs, disc_states = disc_forward(
+            disc_params, inputs, disc_states)
+        fake_outputs, disc_states = disc_forward(
+            disc_params, gen_outputs, disc_states)
         disc_outputs = [real_outputs, fake_outputs]
         net_outputs = [gen_outputs, disc_outputs]
         gen_loss_outputs, gen_loss_states = gen_loss_forward(
