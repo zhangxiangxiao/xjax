@@ -31,7 +31,10 @@ def vjp(forward, params, inputs, states):
     """jax.vjp against the params of forward."""
     def _forward(_params):
         return forward(_params, inputs, states)
-    outputs, vjpf, states = jax.vjp(_forward, params, has_aux=True)
+    outputs, _vjpf, states = jax.vjp(_forward, params, has_aux=True)
+    def vjpf(grad_outputs):
+        grad_params, = _vjpf(grad_outputs)
+        return grad_params
     return vjpf, outputs, states
 
 
@@ -39,7 +42,7 @@ def vjp_full(forward, params, inputs, states):
     """jax.vjp against params and inputs of forward."""
     def _forward(_params, _inputs):
         return forward(_params, _inputs, states)
-    outputs, vjp, states = jax.vjp(_forward, params, inputs, has_aux=True)
+    outputs, vjpf, states = jax.vjp(_forward, params, inputs, has_aux=True)
     return vjpf, outputs, states
 
 
@@ -47,7 +50,10 @@ def vjp_inputs(forward, params, inputs, states):
     """jax.vjp against the inputs of forward."""
     def _forward(_inputs):
         return forward(params, _inputs, states)
-    outputs, vjpf, states = jax.vjp(_forward, inputs, has_aux=True)
+    outputs, _vjpf, states = jax.vjp(_forward, inputs, has_aux=True)
+    def vjpf(grad_outputs):
+        grad_inputs, = _vjpf(grad_outputs)
+        return grad_inputs
     return vjpf, outputs, states
 
 
@@ -59,8 +65,8 @@ def map_add(tree1, tree2):
     return jax.tree_map(jnp.add, tree1, tree2)
 
 
-def Model(module):
-    """Generic model which is simply an xjax.xnn module.
+def Module(module):
+    """A model which is simply an xjax.xnn module.
 
     Args:
       module: an xjax.xnn module that has learnable parameters whose outputs are
@@ -72,20 +78,20 @@ def Model(module):
       initial_params: the initial parameters.
       initial_states: the initial states.
     """
-    module_forward, initial_params, initial_states = module[0]
+    module_forward, initial_params, initial_states = module
     def forward(params, inputs, states):
         outputs, states = module_forward(params, inputs, states)
-        return (None, outputs), states
+        return None, outputs, states
     def backward(params, inputs, states):
         vjpf, outputs, states = vjp(module_forward, params, inputs, states)
         grads_outputs = map_ones_like(outputs)
         grads = vjpf(grads_outputs)
-        return grads, (None, outputs), states
+        return grads, None, outputs, states
     return ModelTuple(forward, backward, initial_params, initial_states)
 
 
-def FeedForward(net, loss):
-    """Feedforward model.
+def Model(net, loss):
+    """A model assuming `net_inputs, net_targets = inputs`.
 
     Args:
       net: an xjax.xnn module that has learnable parameters.
@@ -103,22 +109,26 @@ def FeedForward(net, loss):
     initial_states = (net_initial_states, loss_initial_states)
     def forward(params, inputs, states):
         net_states, loss_states = states
-        net_outputs, net_states = net_forward(params, inputs, net_states)
+        net_inputs, net_targets = inputs
+        net_outputs, net_states = net_forward(params, net_inputs, net_states)
+        loss_inputs = [net_outputs, net_targets]
         loss_outputs, loss_states = loss_forward(
-            loss_params, net_outputs, loss_states)
+            loss_params, loss_inputs, loss_states)
         states = (net_states, loss_states)
         return net_outputs, loss_outputs, states
     def backward(params, inputs, states):
         # Forward propagate and build backward graph.
         net_states, loss_states = states
+        net_inputs, net_targets = inputs
         net_vjpf, net_outputs, net_states = vjp(
-            net_forward, params, inputs, net_states)
+            net_forward, params, net_inputs, net_states)
+        loss_inputs = [net_outputs, net_targets]
         loss_vjpf, loss_outputs, loss_states = vjp_inputs(
-            loss_forward, loss_params, net_outputs, loss_states)
+            loss_forward, loss_params, loss_inputs, loss_states)
         states = (net_states, loss_states)
-        # Backward propagate through loss.
+        # Backward propagate.
         grads_loss_outputs = map_ones_like(loss_outputs)
-        grads_net_outputs = loss_vjpf(grads_loss_outputs)
+        grads_net_outputs, _ = loss_vjpf(grads_loss_outputs)
         grads = net_vjpf(grads_net_outputs)
         return grads, net_outputs, loss_outputs, states
     return ModelTuple(forward, backward, initial_params, initial_states)

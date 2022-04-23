@@ -76,7 +76,7 @@ class TransferTest(absltest.TestCase):
         return self.template(xnn.Exp, jnp.exp)
 
     def test_relu(self):
-        return self.template(xnn.Relu, jnn.relu)
+        return self.template(xnn.ReLU, jnn.relu)
 
     def test_sigmoid(self):
         return self.template(xnn.Sigmoid, jnn.sigmoid)
@@ -175,6 +175,16 @@ class RepeatTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(reference, outputs))
 
 
+class IdentityTest(absltest.TestCase):
+    def test_forward(self):
+        # A Logic Named Joe
+        rng = jrand.PRNGKey(1946)
+        inputs = jrand.normal(rng, shape=(8, 4))
+        forward, params, states = xnn.Identity()
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs, outputs))
+
+
 class MulConstTest(absltest.TestCase):
     def test_forward(self):
         # A Logic Named Joe
@@ -204,7 +214,7 @@ class GroupTest(absltest.TestCase):
         # A Logic Named Joe
         rngs = jrand.split(jrand.PRNGKey(1946), 5)
         inputs = [jrand.normal(rng, shape=(8,)) for rng in rngs]
-        forward, params, states = xnn.Group(indices=[[0,1,2],[4,3,2]])
+        forward, params, states = xnn.Group(ind=[[0,1,2],[4,3,2]])
         outputs, states = forward(params, inputs, states)
         self.assertEqual(2, len(outputs))
         self.assertEqual(3, len(outputs[0]))
@@ -217,12 +227,12 @@ class GroupTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(inputs[2], outputs[1][2]))
 
 
-class UngroupTest(absltest.TestCase):
+class FlattenTest(absltest.TestCase):
     def test_forward(self):
         # A Logic Named Joe
         rngs = jrand.split(jrand.PRNGKey(1946), 3)
         inputs = [jrand.normal(rng, shape=(8,)) for rng in rngs]
-        forward, params, states = xnn.Ungroup()
+        forward, params, states = xnn.Flatten()
         outputs, states = forward(
             params, [[inputs[0], inputs[1]],[inputs[1], inputs[2]]], states)
         self.assertEqual(4, len(outputs))
@@ -298,7 +308,7 @@ class SequentialTest(absltest.TestCase):
         # A Logic Named Joe
         rng1, rng2 = jrand.split(jrand.PRNGKey(1946))
         linear = xnn.Linear(rng1, 8, 4)
-        forward, params, states = xnn.Sequential(linear, xnn.Relu(), xnn.Mean())
+        forward, params, states = xnn.Sequential(linear, xnn.ReLU(), xnn.Mean())
         inputs = jrand.normal(rng2, shape=(8,))
         outputs, states = forward(params, inputs, states)
         linear_forward, linear_params, linear_states = linear
@@ -313,7 +323,7 @@ class ParallelTest(absltest.TestCase):
         # A Logic Named Joe
         rng1, rng2 = jrand.split(jrand.PRNGKey(1946))
         linear = xnn.Linear(rng1, 8, 4)
-        forward, params, states = xnn.Parallel(linear, xnn.Relu(), xnn.Mean())
+        forward, params, states = xnn.Parallel(linear, xnn.ReLU(), xnn.Mean())
         inputs = jrand.normal(rng2, shape=(8,))
         outputs, states = forward(params, [inputs,]*3, states)
         linear_forward, linear_params, linear_states = linear

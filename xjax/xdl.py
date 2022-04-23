@@ -60,7 +60,6 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
     initial_states = LearnerStatesTuple(
         train_model[2], optimizer[1], train_model[3], test_model[3],
         evaluator[1])
-
     def train(data, states, callback=None):
         params = states[0]
         opt_states, model_states, eval_states = states[1], states[2], states[4]
@@ -92,7 +91,6 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
         states = LearnerStatesTuple(
             params, opt_states, model_states, states[3], eval_states)
         return total_loss_outputs, total_eval_outputs, states
-
     def test(data, states, callback=None):
         params = states[0]
         opt_states, model_states, eval_states = states[1], states[3], states[4]
@@ -122,7 +120,6 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
         states = LearnerStatesTuple(
             params, opt_states, states[2], model_states, eval_states)
         return total_loss_outputs, total_eval_outputs, states
-
     return LearnerTuple(train, test, initial_states)
 
 

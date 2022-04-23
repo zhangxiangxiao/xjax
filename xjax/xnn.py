@@ -17,10 +17,12 @@ from __future__ import absolute_import
 from functools import partial
 from collections import namedtuple
 
+import jax
 import jax.numpy as jnp
 import jax.nn as jnn
 import jax.nn.initializers as jinit
 import jax.random as jrand
+import jax.tree_util as jtree
 
 
 ModuleTuple = namedtuple('Module', ['forward', 'params', 'states'])
@@ -69,7 +71,7 @@ def SingleInputFunc(func, **kwargs):
 Abs = partial(SingleInputFunc, jnp.abs)
 Tanh = partial(SingleInputFunc, jnp.tanh)
 Exp = partial(SingleInputFunc, jnp.exp)
-Relu = partial(SingleInputFunc, jnn.relu)
+ReLU = partial(SingleInputFunc, jnn.relu)
 Sigmoid = partial(SingleInputFunc, jnn.sigmoid)
 Softplus = partial(SingleInputFunc, jnn.softplus)
 LogSigmoid = partial(SingleInputFunc, jnn.log_sigmoid)
@@ -93,6 +95,12 @@ Reshape = partial(SingleInputFunc, jnp.reshape)
 Repeat = partial(SingleInputFunc, jnp.repeat)
 
 
+# Identity
+def identity(inputs):
+    return inputs
+Identity = partial(SingleInputFunc, identity)
+
+
 def mul_const(inputs, const):
     """Multiply by a constant."""
     return inputs * const
@@ -105,28 +113,21 @@ def add_const(inputs, const):
 AddConst = partial(SingleInputFunc, add_const)
 
 
-def group(inputs, indices):
-    """Group inputs into multipe sub-groups.
-    Example: group(inputs, ([0,2,4],[1,3])) for a list inputs object will return
-    a tuple ([inputs[0], inputs[2], inputs[4]], [inputs[1], inputs[3]]).
-    type(inputs) determines the type (list or tuple) of the subgroup.
-    type(indices) determines the type (list or tuple) of the group container.
+def group(inputs, ind):
+    """Group inputs into a tree structure according to ind.
+    Example: group(inputs, [1, [0, 2]]) will return
+    [inputs[1], [inputs[0], inputs[2]]].
     """
-    outputs = type(indices)(type(inputs)(inputs[i] for i in sub_indices)
-               for sub_indices in indices)
+    outputs = jax.tree_map(lambda x: inputs[x], ind)
     return outputs
 Group = partial(SingleInputFunc, group)
 
 
-def ungroup(inputs):
-    """Ungroup container of containers.
-    Example: ungroup([[[0,1],2],[3,4]]) = [[0,1],2,3,4]. [0,1] is not flattened
-    because it is deeper than 2 containers.
-    type(inputs) determines the type (list or tuple) of the ungrouped outputs.
-    """
-    outputs = type(inputs)(item for sub_inputs in inputs for item in sub_inputs)
+def flatten(inputs):
+    """Flatten inputs into a list."""
+    outputs, _ = jtree.tree_flatten(inputs)
     return outputs
-Ungroup = partial(SingleInputFunc, ungroup)
+Flatten = partial(SingleInputFunc, flatten)
 
 
 def unpack(inputs):
