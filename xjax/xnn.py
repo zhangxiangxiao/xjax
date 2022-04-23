@@ -4,12 +4,22 @@ Functional neural network library for JAX.
 Design principle: an xjax module is a function that returns 3 objects:
   forward: the forward function.
   initial_params: initial module parameters; should be a pytree.
-  initial_states: initial states that forward will modify; should be picklable.
+  initial_states: initial states that forward will modify; should be a dict of
+    pytrees (see below for meaning of the dict keys)
 initial_params and initial_states can be None if not needed.
 
 The signature of the forward function should be
 outputs, new_states = forward(params, inputs, states)
 You should use the returned new states for the next call to forward.
+
+The states of a module consistitude a dict in which the keys control how to
+split and aggregate states when vectorizing a module using xmod.vmap.
+`states = {'rng': rng_states, 'sum': sum_states, 'mean': mean_states}`
+`rng_states` will be split using jax.random.split before calling forward.
+`sum_states` will be copied before calling forward and summed after.
+`mean_states` will be copied before calling forward and averaged after.
+States of all other keys will be copied before calling forward without
+any postprocessing after.
 """
 
 from __future__ import absolute_import
@@ -51,13 +61,13 @@ def Dropout(rng, p=0.5, mode='train'):
     def forward(params, inputs, states):
         if mode == 'train' and p != 0:
             """`states` is actually an rng."""
-            new_states, rng = jrand.split(states)
+            new_rng, rng = jrand.split(states['rng'])
             keep = jrand.bernoulli(rng, 1 - p, inputs.shape)
             outputs = jnp.where(keep, inputs / (1 - p), 0)
-            return outputs, new_states
+            return outputs, {'rng': states}
         else:
             return inputs, states
-    return ModuleTuple(forward, None, rng)
+    return ModuleTuple(forward, None, {'rng': rng})
 
 
 def SingleInput(func, *args, **kwargs):
@@ -155,41 +165,131 @@ MatMul = partial(MultiInput, jnp.matmul)
 Dot = partial(MultiInput, jnp.dot)
 
 
+
+
+def pack_states(states):
+    """Pack states for container."""
+    new_states = {}
+    for i in states:
+        for key in states[i]:
+            if key not in new_states:
+                new_states[key] = {i: states[i][key]}
+            else:
+                new_states[key][i] = states[i][key]
+    return new_states
+
+def pack_states_list(states):
+    """Pack states list for container."""
+    new_states = {}
+    for i in range(len(states)):
+        if states[i] is not None:
+            new_states[i] = states[i]
+    return pack_states(new_states)
+
+def unpack_states(states):
+    """Unpack states for container."""
+    new_states = {}
+    for key in states:
+        for i in states[key]:
+            if i not in new_states:
+                new_states[i] = {key: states[key][i]}
+            else:
+                new_states[i][key] = states[key][i]
+    return new_states
+
+
 def Sequential(*modules):
     """Sequential container."""
-    forwards, initial_params, initial_states = zip(*modules)
+    forwards, initial_params, initial_states_list = zip(*modules)
+    initial_states = pack_states_list(initial_states_list)
     def forward(params, inputs, states):
         outputs = inputs
-        new_states = [None,]*len(states)
+        states = unpack_states(states)
+        new_states = {}
         for i in range(len(forwards)):
-            outputs, new_states[i] = forwards[i](params[i], outputs, states[i])
-        new_states = type(states)(new_states)
-        return outputs, new_states
+            if i in states:
+                outputs, new_states[i] = forwards[i](
+                    params[i], outputs, states[i])
+            else:
+                outputs, _ = forwards[i](params[i], outputs, None)
+        return outputs, pack_states(new_states)
     return ModuleTuple(forward, initial_params, initial_states)
 
 
 def Parallel(*modules):
     """Parallel container."""
-    forwards, initial_params, initial_states = zip(*modules)
+    forwards, initial_params, initial_states_list = zip(*modules)
+    initial_states = pack_states_list(initial_states_list)
     def forward(params, inputs, states):
-        results = [forwards[i](
-            params[i], inputs[i], states[i]) for i in range(len(inputs))]
-        outputs, new_states = zip(*results)
+        states = unpack_states(states)
+        outputs, new_states = [], {}
+        for i in range(len(forwards)):
+            if i in states:
+                outputs_i, new_states[i] = forwards[i](
+                    params[i], inputs[i], states[i])
+            else:
+                outputs_i, _ = forwards[i](params[i], inputs[i], None)
+            outputs.append(outputs_i)
         outputs = type(inputs)(outputs)
-        new_states = type(states)(new_states)
-        return outputs, new_states
+        return outputs, pack_states(new_states)
     return ModuleTuple(forward, initial_params, initial_states)
 
 
 def SharedParallel(module):
     """Share module parameters across multiple parallel inputs."""
-    module_forward, initial_params, initial_states = module
+    module_forward, initial_params, initial_states_list = module
     def forward(params, inputs, states):
         outputs = [None,]*len(inputs)
-        new_states = states
         for i in range(len(inputs)):
-            outputs[i], new_states = module_forward(
-                params, inputs[i], new_states)
+            outputs[i], states = module_forward(params, inputs[i], states)
         outputs = type(inputs)(outputs)
         return outputs, new_states
     return ModuleTuple(forward, initial_params, initial_states)
+
+
+def vmap(module, size):
+    """Vectorized the module.
+
+    Args:
+      module: the module to be vectorized.
+      size: the batch size.
+
+    Returns:
+      forward: the vectorized forward function.
+      params: module parameters.
+      states: vectorized states according to its dictionary key.
+    """
+    module_forward, module_params, module_states = module
+    if module_states == None:
+        initial_states = None
+    else:
+        initial_states = {}
+        if 'rng' in module_states:
+            initial_states['rng'] = jax.tree_map(
+                lambda x: jnp.array(jrand.split(x)), module_states['rng'])
+        for key in module_states:
+            if key != 'rng':
+                initial_states[key] = jax.tree_map(
+                    lambda x: jnp.repeat(jnp.expand_dims(x, 0), size, axis=0),
+                    module_states[key])
+    module_forward_vmap = jax.vmap(module_forward, in_axes=(None, 0, 0))
+    def forward(params, inputs, states):
+        outputs, states = module_forward_vmap(params, inputs, states)
+        if states is None:
+            new_states = None
+        else:
+            new_states = {}
+            for key in states:
+                if key == 'sum':
+                    new_states[key] = jax.tree_map(
+                        lambda x: jnp.repeat(jnp.sum(
+                            x, axis=0, keepdims=True), size, axis=0),
+                        states[key])
+                elif key == 'mean':
+                    new_states[key] = jax.tree_map(
+                        lambda x: jnp.repeat(jnp.mean(
+                            x, axis=0, keepdims=True), size, axis=0),
+                        states[key])
+                else:
+                    new_states[key] = states[key]
+        return outputs, new_states
