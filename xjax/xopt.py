@@ -8,19 +8,6 @@ Design principle: an xjax optimizer is a function that returns 2 objects:
 The signature of the update function should be
 new_params, new_states = update(params, grads, states)
 states[0] is always the current step count.
-
-We provide an @optimizer decorator that turns an optimizer into one that works
-on pytrees and also adds the step counter. It should be applied to a function
-that retuns 2 objects:
-  init: the state initialize function
-  update: the update function
-
-The signature of the init function should be
-initial_states = init(initial_params)
-
-The signature of the update function should be
-new_params, states = update(params, grads, states, step)
-Note the additional `step` argument compared to the decorated optimizer.
 """
 
 from __future__ import absolute_import

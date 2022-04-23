@@ -156,6 +156,6 @@ def Evaluator(module):
       states: the initial states of evaluator.
     """
     forward, params, initial_states = module
-    def evaluate(inputs, model_outputs, states):
-        return forward(params, [inputs, model_outputs], states)
+    def evaluate(inputs, net_outputs, states):
+        return forward(params, [inputs, net_outputs], states)
     return EvaluatorTuple(evaluate, initial_states)
