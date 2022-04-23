@@ -11,6 +11,33 @@ from collections import namedtuple
 import pickle
 
 import jax
+import jax.numpy as jnp
+
+
+EvaluatorTuple = namedtuple('Evaluator', ['evaluate', 'states'])
+
+
+def Evaluator(module):
+    """Generic evaluator which is simply an xjax.xnn module.
+    Args:
+      module: an xjax.xnn module whose ouputs will be used as evluation outputs.
+
+    Returns:
+      evaluate: the evaluate function.
+      states: the initial states of evaluator.
+    """
+    forward, params, initial_states = module
+    def evaluate(inputs, net_outputs, states):
+        return forward(params, [inputs, net_outputs], states)
+    return EvaluatorTuple(evaluate, initial_states)
+
+
+def ClassEvaluator():
+    """Classification evaluator. Assuming _, labels = inputs."""
+    def evaluate(inputs, net_outputs, states):
+        net_labels = jnp.argmax(net_outputs, axis=-1)
+        return jnp.mean(jnp.equal(inputs[1], net_labels)), states
+    return EvaluatorTuple(evaluate, None)
 
 
 LearnerTuple = namedtuple('LearnerTuple', ['train', 'test', 'states'])
@@ -141,21 +168,3 @@ def load(fd):
 def loads(data):
     """Loads states from bytes."""
     pickle.loads(data)
-
-
-EvaluatorTuple = namedtuple('Evaluator', ['evaluate', 'states'])
-
-
-def Evaluator(module):
-    """Generic evaluator which is simply an xjax.xnn module.
-    Args:
-      module: an xjax.xnn module whose ouputs will be used as evluation outputs.
-
-    Returns:
-      evaluate: the evaluate function.
-      states: the initial states of evaluator.
-    """
-    forward, params, initial_states = module
-    def evaluate(inputs, net_outputs, states):
-        return forward(params, [inputs, net_outputs], states)
-    return EvaluatorTuple(evaluate, initial_states)

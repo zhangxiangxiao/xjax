@@ -156,11 +156,13 @@ def GAN(gen, disc, gen_loss, disc_loss):
     gen_loss_forward, gen_loss_params = gen_loss[0], gen_loss[1]
     disc_loss_forward, disc_loss_params = disc_loss[0], disc_loss[1]
     def forward(params, inputs, states):
+        gen_inputs, real_inputs = inputs
         gen_params, disc_params = params
         gen_states, disc_states, gen_loss_states, disc_loss_states = states
-        gen_outputs, gen_states = gen_forward(gen_params, None, gen_states)
+        gen_outputs, gen_states = gen_forward(
+            gen_params, gen_inputs, gen_states)
         real_outputs, disc_states = disc_forward(
-            disc_params, inputs, disc_states)
+            disc_params, real_inputs, disc_states)
         fake_outputs, disc_states = disc_forward(
             disc_params, gen_outputs, disc_states)
         disc_outputs = [real_outputs, fake_outputs]
@@ -173,14 +175,15 @@ def GAN(gen, disc, gen_loss, disc_loss):
         states = (gen_states, disc_states, gen_loss_states, disc_loss_states)
         return net_outputs, loss_outputs, states
     def backward(params, inputs, states):
+        gen_inputs, real_inputs = inputs
         gen_params, disc_params = params
         gen_states, disc_states, gen_loss_states, disc_loss_states = states
         gen_loss_states, disc_loss_states = states[2], states[3]
         # Forward propagate and build backward graph
         gen_vjpf, gen_outputs, gen_states = vjp(
-            gen_forward, gen_params, None, gen_states)
+            gen_forward, gen_params, gen_inputs, gen_states)
         disc_vjpf_real, real_outputs, disc_states = vjp(
-            disc_forward, disc_params, inputs, disc_states)
+            disc_forward, disc_params, real_inputs, disc_states)
         disc_vjpf_fake, fake_outputs, disc_states = vjp_full(
             disc_forward, disc_params, gen_outputs, disc_states)
         disc_outputs = [real_outputs, fake_outputs]

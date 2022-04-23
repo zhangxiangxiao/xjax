@@ -101,10 +101,9 @@ class ModelTest(absltest.TestCase):
 class GANTest(absltest.TestCase):
     def setUp(self):
         # A Logic Named Joe
-        rng1, rng2, rng3, rng4, rng5 = jrand.split(jrand.PRNGKey(1946), 5)
+        rng1, rng2, rng3, rng4, rng5, rng6 = jrand.split(jrand.PRNGKey(1946), 6)
         # Generator is a 2-layer MLP.
         self.gen = xnn.Sequential(
-            xnn.Normal(rng1, shape=(2,)),
             xnn.Linear(rng2, 2, 4), xnn.ReLU(),
             xnn.Linear(rng3, 4, 8))
         # Discriminator is a linear model.
@@ -118,21 +117,24 @@ class GANTest(absltest.TestCase):
         # Build the GAN model
         self.model = xmod.GAN(
             self.gen, self.disc, self.gen_loss, self.disc_loss)
-        # inputs = [net_inputs, net_targets].
-        self.inputs = jrand.normal(rng5, shape=(8,))
+        # inputs = [gen_inputs, real_inputs].
+        self.inputs = [jrand.normal(rng5, shape=(2,)),
+                       jrand.normal(rng6, shape=(8,))]
 
     def test_forward(self):
         forward, _, params, states = self.model
         inputs = self.inputs
+        gen_inputs, real_inputs = inputs
         ([gen_outputs, [real_outputs, fake_outputs]],
          [gen_loss_outputs, disc_loss_outputs], states) = forward(
              params, inputs, states)
         gen_forward, gen_params, gen_states = self.gen
-        ref_gen_outputs, gen_states = gen_forward(gen_params, None, gen_states)
+        ref_gen_outputs, gen_states = gen_forward(
+            gen_params, gen_inputs, gen_states)
         self.assertTrue(jnp.allclose(ref_gen_outputs, gen_outputs))
         disc_forward, disc_params, disc_states = self.disc
         ref_real_outputs, disc_states = disc_forward(
-            disc_params, inputs, disc_states)
+            disc_params, real_inputs, disc_states)
         self.assertTrue(jnp.allclose(ref_real_outputs, real_outputs))
         ref_fake_outputs, disc_states = disc_forward(
             disc_params, gen_outputs, disc_states)
@@ -150,6 +152,7 @@ class GANTest(absltest.TestCase):
     def test_backward(self):
         forward, backward, params, states = self.model
         inputs = self.inputs
+        gen_inputs, real_inputs = inputs
         [gen_grads, disc_grads], net_outputs, loss_outputs, _ = backward(
             params, inputs, states)
         ref_net_outputs, ref_loss_outputs, _ = forward(

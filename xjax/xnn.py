@@ -155,17 +155,6 @@ MatMul = partial(MultiInput, jnp.matmul)
 Dot = partial(MultiInput, jnp.dot)
 
 
-def Random(func, rng, *args, **kwargs):
-    """Layer that generate random numbers."""
-    def forward(params, inputs, states):
-        rng, states = jrand.split(states)
-        return func(rng, *args, **kwargs), states
-    return ModuleTuple(forward, None, rng)
-Normal = partial(Random, jrand.normal)
-Uniform = partial(Random, jrand.uniform)
-Bernoulli = partial(Random, jrand.bernoulli)
-
-
 def Sequential(*modules):
     """Sequential container."""
     forwards, initial_params, initial_states = zip(*modules)

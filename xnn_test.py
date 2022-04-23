@@ -303,28 +303,6 @@ class DotTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(reference, outputs))
 
 
-class RandomTest(absltest.TestCase):
-    def template(self, module, func, *args, **kwargs):
-        # A Logic Named Joe
-        rng = jrand.PRNGKey(1946)
-        forward, params, states = module(rng, shape=(8, 4), *args, **kwargs)
-        inputs = None
-        outputs, states = forward(params, inputs, states)
-        self.assertEqual((8, 4), outputs.shape)
-        rng, reference_states = jrand.split(rng)
-        reference = func(rng, shape=(8, 4), *args, **kwargs)
-        self.assertTrue(jnp.array_equal(reference, outputs))
-
-    def test_normal(self):
-        return self.template(xnn.Normal, jrand.normal)
-
-    def test_uniform(self):
-        return self.template(xnn.Uniform, jrand.uniform)
-
-    def test_bernoulli(self):
-        return self.template(xnn.Bernoulli, jrand.bernoulli)
-
-
 class SequentialTest(absltest.TestCase):
     def test_forward(self):
         # A Logic Named Joe
@@ -355,6 +333,7 @@ class ParallelTest(absltest.TestCase):
         self.assertEqual(3, len(outputs))
         for i in range(3):
             self.assertTrue(jnp.array_equal(reference[i], outputs[i]))
+
 
 class SharedParallelTest(absltest.TestCase):
     def test_forward(self):
