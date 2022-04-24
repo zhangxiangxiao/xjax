@@ -176,12 +176,14 @@ Bernoulli = partial(Random, jrand.bernoulli)
 def pack_states(states):
     """Pack states for container."""
     new_states = {}
-    for i in states:
-        for key in states[i]:
+    for i in (states if states is not None else {}):
+        for key in (states[i] if states[i] is not None else {}):
             if key not in new_states:
                 new_states[key] = {i: states[i][key]}
             else:
                 new_states[key][i] = states[i][key]
+    if len(new_states) == 0:
+        new_states = None
     return new_states
 
 def pack_states_list(states):
@@ -189,19 +191,22 @@ def pack_states_list(states):
     new_states = {}
     if states is not None:
         for i in range(len(states)):
-            if states[i] is not None:
-                new_states[i] = states[i]
+            new_states[i] = states[i]
+    if len(new_states) == 0:
+        new_states = None
     return pack_states(new_states)
 
 def unpack_states(states):
     """Unpack states for container."""
     new_states = {}
-    for key in states:
-        for i in states[key]:
+    for key in (states if states is not None else {}):
+        for i in (states[key] if states[key] is not None else {}):
             if i not in new_states:
                 new_states[i] = {key: states[key][i]}
             else:
                 new_states[i][key] = states[key][i]
+    if len(new_states) == 0:
+        new_states = None
     return new_states
 
 
@@ -214,7 +219,7 @@ def Sequential(*modules):
         states = unpack_states(states)
         new_states = {}
         for i in range(len(forwards)):
-            if i in states:
+            if states is not None and i in states:
                 outputs, new_states[i] = forwards[i](
                     params[i], outputs, states[i])
             else:
@@ -231,7 +236,7 @@ def Parallel(*modules):
         states = unpack_states(states)
         outputs, new_states = [], {}
         for i in range(len(forwards)):
-            if i in states:
+            if states is not None and i in states:
                 outputs_i, new_states[i] = forwards[i](
                     params[i], inputs[i], states[i])
             else:

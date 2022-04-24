@@ -48,6 +48,14 @@ class ModuleTest(absltest.TestCase):
         jax.tree_map(lambda x, y: self.assertTrue(jnp.allclose(x, y)),
                      ref_grads, grads)
 
+    def test_vmap(self):
+        rng, self.rng = jrand.split(self.rng)
+        forward, backward, params, states = xmod.vmap(self.model, 4)
+        inputs = jrand.normal(rng, shape=(4,8))
+        net_outputs, loss_outputs, states = forward(params, inputs, states)
+        self.assertIsNone(net_outputs)
+        self.assertEqual((4, 1), loss_outputs.shape)
+
 
 class ModelTest(absltest.TestCase):
     def setUp(self):
@@ -112,8 +120,7 @@ class GANTest(absltest.TestCase):
         self.gen_loss = xnn.Norm()
         # Discriminator loss motiviates the real output to zero, fake to -inf.
         self.disc_loss = xnn.Sequential(
-            xnn.Parallel(xnn.Norm(), xnn.Identity()),
-            xnn.Add())
+            xnn.Parallel(xnn.Norm(), xnn.Identity()), xnn.Add())
         # Build the GAN model
         self.model = xmod.GAN(
             self.gen, self.disc, self.gen_loss, self.disc_loss)

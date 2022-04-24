@@ -86,7 +86,7 @@ def Module(module):
     initial_states = (module_states,)
     def forward(params, inputs, states):
         _states, = states
-        outputs, _states = module_forward(params, inputs, states)
+        outputs, _states = module_forward(params, inputs, _states)
         states = (_states,)
         return None, outputs, states
     def backward(params, inputs, states):
@@ -244,11 +244,11 @@ def vectorize(map_func, model, size, *args, **kwargs):
       states: vectorized states.
     """
     model_forward, model_backward, initial_params, model_states = model
-    initial_states = vectorize_states(model_states)
+    initial_states = vectorize_states(model_states, size)
     # Map over inputs and states, but not parameters.
     forward_v = map_func(model_forward, in_axes=(None, 0, 0), *args, **kwargs)
     def forward(params, inputs, states):
-        net_outputs, loss_outputs, states = forward_v(pararms, inputs, states)
+        net_outputs, loss_outputs, states = forward_v(params, inputs, states)
         new_states = postprocess_states(states, size)
         return net_outputs, loss_outputs, states
     # Map over inputs and states, but not parameters.
