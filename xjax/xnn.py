@@ -13,13 +13,12 @@ outputs, new_states = forward(params, inputs, states)
 You should use the returned new states for the next call to forward.
 
 The states of a module consistitude a dict in which the keys control how to
-split and aggregate states when vectorizing a module using xmod.vmap.
-`states = {'rng': rng_states, 'sum': sum_states, 'mean': mean_states}`
-`rng_states` will be split using jax.random.split before calling forward.
-`sum_states` will be copied before calling forward and summed after.
-`mean_states` will be copied before calling forward and averaged after.
-States of all other keys will be copied before calling forward without
-any postprocessing after.
+split and aggregate states when vectorizing a module using xnn.vmap or xnn.pmap.
+`states = {'rng': rng_states, 'mean': mean_states, k1: v1, k2: v2, ...}`
+`rng_states` will be split to batch using jax.random.split before `forward`.
+`mean_states` will be copied to batch before `forward` and averaged after.
+States of all other keys will be copied before `forward` without any
+postprocessing after.
 """
 
 from __future__ import absolute_import
@@ -41,12 +40,12 @@ ModuleTuple = namedtuple('Module', ['forward', 'params', 'states'])
 def Linear(rng, in_dim, out_dim, w_init=jinit.glorot_normal(),
            b_init=jinit.normal()):
     w_rng, b_rng = jrand.split(rng)
-    initial_w = w_init(w_rng, (out_dim, in_dim))
+    initial_w = w_init(w_rng, (in_dim, out_dim))
     initial_b = b_init(b_rng, (out_dim,))
     initial_params = (initial_w, initial_b)
     def forward(params, inputs, states):
         w, b = params
-        return jnp.dot(w, inputs) + b, states
+        return jnp.dot(inputs, w) + b, states
     return ModuleTuple(forward, initial_params, None)
 
 
@@ -60,7 +59,6 @@ def Embed(rng, embed_size, embed_dim, embed_init=jinit.normal()):
 def Dropout(rng, p=0.5, mode='train'):
     def forward(params, inputs, states):
         if mode == 'train' and p != 0:
-            """`states` is actually an rng."""
             new_rng, rng = jrand.split(states['rng'])
             keep = jrand.bernoulli(rng, 1 - p, inputs.shape)
             outputs = jnp.where(keep, inputs / (1 - p), 0)
@@ -105,7 +103,6 @@ Reshape = partial(SingleInput, jnp.reshape)
 Repeat = partial(SingleInput, jnp.repeat)
 
 
-# Identity
 def identity(inputs):
     return inputs
 Identity = partial(SingleInput, identity)
@@ -247,10 +244,31 @@ def SharedParallel(module):
     return ModuleTuple(forward, initial_params, initial_states)
 
 
-def vmap(module, size):
+def copy_vectorize(states, size):
+    """vectorize states before calling forward."""
+    return jax.tree_map(
+        lambda x: jnp.repeat(jnp.expand_dims(x, 0), size, axis=0), states)
+
+def rng_vectorize(states, size):
+    """vectorize rng states before calling forward."""
+    def leaf_vectorize(leaf):
+        new_leaf = jax.apply_along_axis(
+            lambda rng: jnp.array(jrand.split(rng, size)), -1, leaf)
+        return jax.swapaxes(new_leaf, -2, 0)
+    new_states = jax.tree_map(leaf_vectorize, states)
+    return new_states
+
+def mean_vectorize(states, size):
+    """vectorize sum states after calling forward."""
+    def leaf_vectorize(leaf):
+        return jax.repeat(jax.mean(leaf, axis=0, keepdims=True), size, axis=0)
+    new_states = jax.tree_map(leaf_vectorize, states)
+
+def vectorize(map_func, module, size, *args, **kwargs):
     """Vectorized the module.
 
     Args:
+      map_func: jax.vmap or jax.pmap.
       module: the module to be vectorized.
       size: the batch size.
 
@@ -260,36 +278,29 @@ def vmap(module, size):
       states: vectorized states according to its dictionary key.
     """
     module_forward, module_params, module_states = module
-    if module_states == None:
-        initial_states = None
-    else:
+    initial_states = None
+    if module_states is not None:
         initial_states = {}
-        if 'rng' in module_states:
-            initial_states['rng'] = jax.tree_map(
-                lambda x: jnp.array(jrand.split(x)), module_states['rng'])
         for key in module_states:
-            if key != 'rng':
-                initial_states[key] = jax.tree_map(
-                    lambda x: jnp.repeat(jnp.expand_dims(x, 0), size, axis=0),
-                    module_states[key])
-    module_forward_vmap = jax.vmap(module_forward, in_axes=(None, 0, 0))
+            if key == 'rng':
+                initial_states[key] = rng_vectorize(module_states[key], size)
+            else:
+                initial_states[key] = copy_vectorize(module_states[key], size)
+    # Map over inputs and states, but not parameters.
+    module_forward_vectorize = map_func(
+        module_forward, in_axes=(None, 0, 0), *args, **kwargs)
     def forward(params, inputs, states):
-        outputs, states = module_forward_vmap(params, inputs, states)
-        if states is None:
-            new_states = None
-        else:
+        outputs, states = module_forward_vectorize(params, inputs, states)
+        new_states = None
+        if states is not None:
             new_states = {}
             for key in states:
-                if key == 'sum':
-                    new_states[key] = jax.tree_map(
-                        lambda x: jnp.repeat(jnp.sum(
-                            x, axis=0, keepdims=True), size, axis=0),
-                        states[key])
-                elif key == 'mean':
-                    new_states[key] = jax.tree_map(
-                        lambda x: jnp.repeat(jnp.mean(
-                            x, axis=0, keepdims=True), size, axis=0),
-                        states[key])
+                if key == 'mean':
+                    new_states[key] = mean_vectorize(states[key])
                 else:
                     new_states[key] = states[key]
         return outputs, new_states
+    return ModuleTuple(forward, module_params, initial_states)
+
+vmap = partial(vectorize, jax.vmap)
+pmap = partial(vectorize, jax.pmap)
