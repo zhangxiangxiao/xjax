@@ -18,7 +18,9 @@ EvaluatorTuple = namedtuple('Evaluator', ['evaluate', 'states'])
 
 
 def Evaluator(module):
-    """Generic evaluator which is simply an xjax.xnn module.
+    """Generic evaluator which is simply an xjax.xnn module. Assuming
+      net_inputs, net_targets = inputs.
+
     Args:
       module: an xjax.xnn module whose ouputs will be used as evluation outputs.
 
@@ -28,7 +30,7 @@ def Evaluator(module):
     """
     forward, params, initial_states = module
     def evaluate(inputs, net_outputs, states):
-        return forward(params, [inputs, net_outputs], states)
+        return forward(params, [inputs[1], net_outputs], states)
     return EvaluatorTuple(evaluate, initial_states)
 
 

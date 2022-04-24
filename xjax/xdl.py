@@ -83,9 +83,9 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
                 total_eval_outputs = jax.tree_map(
                     lambda x, y: step / (step + 1) * x + 1 / (step + 1) * y,
                     total_eval_outputs, eval_outputs)
-            params, opt_states = update(params, grads, states)
+            params, opt_states = update(params, grads, opt_states)
             if callback is not None:
-                callback(opt_states[0], params, grads, net_outputs,
+                callback(opt_states[0] - 1, params, grads, net_outputs,
                          loss_outputs, eval_outputs, total_loss_outputs,
                          total_eval_outputs)
             step = step + 1
@@ -115,8 +115,8 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
                     lambda x, y: step / (step + 1) * x + 1 / (step + 1) * y,
                     total_eval_outputs, eval_outputs)
             if callback is not None:
-                callback(step, callback_outputs, net_outputs, loss_outputs,
-                         eval_outputs, total_loss_outputs, total_eval_outputs)
+                callback(step, net_outputs, loss_outputs, eval_outputs,
+                         total_loss_outputs, total_eval_outputs)
             step = step + 1
         states = LearnerStatesTuple(
             params, opt_states, states[2], model_states, eval_states)
@@ -126,19 +126,19 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
 
 def dump(states, fd):
     """Serialize states to file."""
-    pickle.dump(states, fd)
+    return pickle.dump(states, fd)
 
 
 def dumps(states):
     """Serialize states to bytes."""
-    pickle.dumps(states)
+    return pickle.dumps(states)
 
 
 def load(fd):
     """Load states from file."""
-    pickle.load(fd)
+    return pickle.load(fd)
 
 
 def loads(data):
     """Loads states from bytes."""
-    pickle.loads(data)
+    return pickle.loads(data)

@@ -5,7 +5,6 @@ Unit tests for xeval.
 from xjax import xeval
 
 from absl.testing import absltest
-import jax
 import jax.numpy as jnp
 import jax.random as jrand
 from xjax import xnn
