@@ -32,7 +32,7 @@ def Evaluator(module):
     return EvaluatorTuple(evaluate, initial_states)
 
 
-def ClassEvaluator():
+def ClassEval():
     """Classification evaluator. Assuming _, labels = inputs."""
     def evaluate(inputs, net_outputs, states):
         net_labels = jnp.argmax(net_outputs, axis=-1)
@@ -55,7 +55,7 @@ def vectorize(map_func, evaluator, size, *args, **kwargs):
     eval_evaluate, eval_states = evaluator
     initial_states = vectorize_states(eval_states, size)
     # Map over inputs and states
-    evaluate_v = map_func(evaluate, *args, **kwargs)
+    evaluate_v = map_func(eval_evaluate, *args, **kwargs)
     def evaluate(inputs, net_outputs, states):
         outputs, states = evaluate_v(inputs, net_outputs, states)
         new_states = postprocess_states(states, size)
