@@ -1,5 +1,5 @@
 # XJAX
-A Simple JAX framework for neural networks.
+A Simple JAX framework for neural networks. Everything is done in functional programming.
 
 ## Short example
 ```python
