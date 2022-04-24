@@ -20,7 +20,7 @@ class LinearTest(absltest.TestCase):
         inputs = jrand.normal(rng, shape=(4,))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((8,), outputs.shape)
-        reference = jnp.dot(params[0], inputs) + params[1]
+        reference = jnp.dot(inputs, params[0]) + params[1]
         self.assertTrue(jnp.array_equal(reference, outputs))
 
 
@@ -303,6 +303,28 @@ class DotTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(reference, outputs))
 
 
+class RandomTest(absltest.TestCase):
+    def template(self, module, func, *args, **kwargs):
+        # A Logic Named Joe
+        rng = jrand.PRNGKey(1946)
+        forward, params, states = module(rng, shape=(8, 4), *args, **kwargs)
+        inputs = None
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((8, 4), outputs.shape)
+        rng, reference_states = jrand.split(rng)
+        reference = func(rng, shape=(8, 4), *args, **kwargs)
+        self.assertTrue(jnp.array_equal(reference, outputs))
+        
+    def test_normal(self):
+        return self.template(xnn.Normal, jrand.normal)
+        
+    def test_uniform(self):
+        return self.template(xnn.Uniform, jrand.uniform)
+        
+    def test_bernoulli(self):
+        return self.template(xnn.Bernoulli, jrand.bernoulli)                                                                                                        
+
+
 class SequentialTest(absltest.TestCase):
     def test_forward(self):
         # A Logic Named Joe
@@ -349,6 +371,22 @@ class SharedParallelTest(absltest.TestCase):
             reference, linear_states = linear_forward(
                 linear_params, inputs[i], linear_states)
             self.assertTrue(jnp.array_equal(reference, outputs[i]))
+
+
+class VMapTest(absltest.TestCase):
+    def setUp(self):
+        # A Logic Named Joe
+        rng1, rng2, rng3, rng4 = jrand.split(jrand.PRNGKey(1946), 4)
+        module = xnn.Sequential(
+            xnn.Linear(rng1, 8, 16), xnn.ReLU(), xnn.Dropout(rng2),
+            xnn.Linear(rng3, 16, 2))
+        self.module = xnn.vmap(module, 4)
+        self.inputs = jrand.normal(rng4, shape=(4, 8))
+    def test_forward(self):
+        forward, params, states = self.module
+        inputs = self.inputs
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((4, 2), outputs.shape)
 
 
 if __name__ == '__main__':

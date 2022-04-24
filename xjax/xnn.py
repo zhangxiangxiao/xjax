@@ -162,6 +162,16 @@ MatMul = partial(MultiInput, jnp.matmul)
 Dot = partial(MultiInput, jnp.dot)
 
 
+def Random(func, rng, *args, **kwargs):
+    """Layer that generate random numbers."""
+    def forward(params, inputs, states):
+        rng, new_rng = jrand.split(states['rng'])
+        states['rng'] = new_rng
+        return func(rng, *args, **kwargs), states
+    return ModuleTuple(forward, None, {'rng': rng})
+Normal = partial(Random, jrand.normal)
+Uniform = partial(Random, jrand.uniform)
+Bernoulli = partial(Random, jrand.bernoulli)
 
 
 def pack_states(states):
@@ -178,9 +188,10 @@ def pack_states(states):
 def pack_states_list(states):
     """Pack states list for container."""
     new_states = {}
-    for i in range(len(states)):
-        if states[i] is not None:
-            new_states[i] = states[i]
+    if states is not None:
+        for i in range(len(states)):
+            if states[i] is not None:
+                new_states[i] = states[i]
     return pack_states(new_states)
 
 def unpack_states(states):
@@ -234,13 +245,13 @@ def Parallel(*modules):
 
 def SharedParallel(module):
     """Share module parameters across multiple parallel inputs."""
-    module_forward, initial_params, initial_states_list = module
+    module_forward, initial_params, initial_states = module
     def forward(params, inputs, states):
         outputs = [None,]*len(inputs)
         for i in range(len(inputs)):
             outputs[i], states = module_forward(params, inputs[i], states)
         outputs = type(inputs)(outputs)
-        return outputs, new_states
+        return outputs, states
     return ModuleTuple(forward, initial_params, initial_states)
 
 
@@ -252,20 +263,42 @@ def copy_vectorize(states, size):
 def rng_vectorize(states, size):
     """vectorize rng states before calling forward."""
     def leaf_vectorize(leaf):
-        new_leaf = jax.apply_along_axis(
+        new_leaf = jnp.apply_along_axis(
             lambda rng: jnp.array(jrand.split(rng, size)), -1, leaf)
-        return jax.swapaxes(new_leaf, -2, 0)
+        return jnp.swapaxes(new_leaf, -2, 0)
     new_states = jax.tree_map(leaf_vectorize, states)
     return new_states
 
-def mean_vectorize(states, size):
+def vectorize_states(states, size):
+    new_states = None
+    if states is not None:
+        new_states = {}
+        for key in states:
+            if key == 'rng':
+                new_states[key] = rng_vectorize(states[key], size)
+            else:
+                new_states[key] = copy_vectorize(states[key], size)
+    return new_states
+
+def mean_postprocess(states, size):
     """vectorize sum states after calling forward."""
     def leaf_vectorize(leaf):
         return jax.repeat(jax.mean(leaf, axis=0, keepdims=True), size, axis=0)
     new_states = jax.tree_map(leaf_vectorize, states)
 
+def postprocess_states(states, size):
+    new_states = None
+    if states is not None:
+        new_states = {}
+        for key in states:
+            if key == 'mean':
+                new_states[key] = mean_postprocess(states[key], size)
+            else:
+                new_states[key] = states
+    return new_states
+
 def vectorize(map_func, module, size, *args, **kwargs):
-    """Vectorized the module.
+    """Vectorize the module.
 
     Args:
       map_func: jax.vmap or jax.pmap.
@@ -277,30 +310,15 @@ def vectorize(map_func, module, size, *args, **kwargs):
       params: module parameters.
       states: vectorized states according to its dictionary key.
     """
-    module_forward, module_params, module_states = module
-    initial_states = None
-    if module_states is not None:
-        initial_states = {}
-        for key in module_states:
-            if key == 'rng':
-                initial_states[key] = rng_vectorize(module_states[key], size)
-            else:
-                initial_states[key] = copy_vectorize(module_states[key], size)
+    module_forward, initial_params, module_states = module
+    initial_states = vectorize_states(module_states, size)
     # Map over inputs and states, but not parameters.
-    module_forward_vectorize = map_func(
-        module_forward, in_axes=(None, 0, 0), *args, **kwargs)
+    forward_v = map_func(module_forward, in_axes=(None, 0, 0), *args, **kwargs)
     def forward(params, inputs, states):
-        outputs, states = module_forward_vectorize(params, inputs, states)
-        new_states = None
-        if states is not None:
-            new_states = {}
-            for key in states:
-                if key == 'mean':
-                    new_states[key] = mean_vectorize(states[key])
-                else:
-                    new_states[key] = states[key]
+        outputs, states = forward_v(params, inputs, states)
+        new_states = postprocess_states(states, size)
         return outputs, new_states
-    return ModuleTuple(forward, module_params, initial_states)
+    return ModuleTuple(forward, initial_params, initial_states)
 
 vmap = partial(vectorize, jax.vmap)
 pmap = partial(vectorize, jax.pmap)

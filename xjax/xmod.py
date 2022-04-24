@@ -13,10 +13,13 @@ The `forward` function has the following signature:
 The `backward` function has the following signature:
 `grads, net_outputs, loss_outputs, new_states = backward(params, inputs, states)`
 Parameter gradients are stored in `grads`.
+
+The `states` variable contains a tuple of xnn module states.
 """
 
 from __future__ import absolute_import
 
+from functools import partial
 from collections import namedtuple
 
 import jax
@@ -78,12 +81,18 @@ def Module(module):
       initial_params: the initial parameters.
       initial_states: the initial states.
     """
-    module_forward, initial_params, initial_states = module
+    module_forward, initial_params, module_states = module
+    # This is needed for compatibility with xmod.vmap and xmod.pmap
+    initial_states = (module_states,)
     def forward(params, inputs, states):
-        outputs, states = module_forward(params, inputs, states)
+        _states, = states
+        outputs, _states = module_forward(params, inputs, states)
+        states = (_states,)
         return None, outputs, states
     def backward(params, inputs, states):
-        vjpf, outputs, states = vjp(module_forward, params, inputs, states)
+        _states, = states
+        vjpf, outputs, _states = vjp(module_forward, params, inputs, _states)
+        states = (_states,)
         grads_outputs = map_ones_like(outputs)
         grads = vjpf(grads_outputs)
         return grads, None, outputs, states
@@ -210,3 +219,46 @@ def GAN(gen, disc, gen_loss, disc_loss):
         grads = (grads_gen_params, grads_disc_params)
         return grads, net_outputs, loss_outputs, states
     return ModelTuple(forward, backward, initial_params, initial_states)
+
+
+def vectorize_states(states, size):
+    # Vectorize module states individually.
+    return (xnn.vectorize_states(s, size) for s in states)
+
+def postprocess_states(states, size):
+    # Process module states individually.
+    return (xnn.postprocess_states(s, size) for s in states)
+
+def vectorize(map_func, model, size, *args, **kwargs):
+    """Vectorize the model.
+
+    Args:
+      map_func: jax.vmap or jax.pmap.
+      model: the model to be vectorized.
+      size: the batch size.
+
+    Returns:
+      forward: vectorized forward function.
+      backward: vectorized backward function. The gradients are averaged.
+      params: model parameters.
+      states: vectorized states.
+    """
+    model_forward, model_backward, initial_params, model_states = model
+    initial_states = vectorize_states(model_states)
+    # Map over inputs and states, but not parameters.
+    forward_v = map_func(model_forward, in_axes=(None, 0, 0), *args, **kwargs)
+    def forward(params, inputs, states):
+        net_outputs, loss_outputs, states = forward_v(pararms, inputs, states)
+        new_states = postprocess_states(states, size)
+        return net_outputs, loss_outputs, states
+    # Map over inputs and states, but not parameters.
+    backward_v = map_func(model_backward, in_axes=(None, 0, 0), *args, **kwargs)
+    def backward(params, inputs, states):
+        grads, net_outputs, loss_outputs, states = backward_v(
+            params, inputs, states)
+        new_states = postprocess_states(states, size)
+        return grads, net_outputs, loss_outputs, states
+    return ModelTuple(forward, backward, initial_params, initial_states)
+
+vmap = partial(vectorize, jax.vmap)
+pmap = partial(vectorize, jax.pmap)
