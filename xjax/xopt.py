@@ -70,7 +70,7 @@ def SGD(initial_params, rate=0.1, decay=0):
     def init(initial_params):
         return None
     initial_states = init(initial_params)
-    return update, initial_states
+    return OptimizerTuple(update, initial_states)
 
 
 def Momentum(initial_params, rate=0.1, coeff=0.9, decay=0):
@@ -88,4 +88,21 @@ def Momentum(initial_params, rate=0.1, coeff=0.9, decay=0):
     def init(initial_params):
         return jnp.zeros_like(initial_params)
     initial_states = init(initial_params)
-    return update, initial_states
+    return OptimizerTuple(update, initial_states)
+
+
+def vectorize(optimizer):
+    """Vectorize the optimizer for vmap or pmap gradients.
+    Gradients are averaged over the mapped dims.
+    """
+    opt_update, initial_states = optimizer
+    def update(params, grads, states):
+        def leaf_reduce(_params, _grads):
+            _grads = jnp.reshape(_grads, (-1,) + _params.shape)
+            return jnp.mean(_grads, axis=0)
+        grads = jax.tree_map(leaf_reduce, params, grads)
+        return opt_update(params, grads, states)
+    return OptimizerTuple(update, initial_states)
+
+vmap = vectorize
+# pmap = vectorize
