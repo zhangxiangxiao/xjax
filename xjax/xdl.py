@@ -53,7 +53,7 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
     if test_model is None:
         test_model = train_model
     if evaluator is None:
-        evaluator = (lambda inputs, net_outputs, states: None, None)
+        evaluator = (lambda inputs, net_outputs, states: (None, None), None)
     update = optimizer[0]
     backward = train_model[1]
     forward = test_model[0]

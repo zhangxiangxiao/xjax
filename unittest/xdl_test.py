@@ -46,9 +46,9 @@ class LearnerTest(absltest.TestCase):
         # Build data.
         data = []
         for i in range(4):
-            rng, self.rng = jrand.split(self.rng, 2)
-            data.append([jrand.normal(rng, shape=(8,)),
-                         jrand.normal(rng, shape=(4,))])
+            rng0, rng1, self.rng = jrand.split(self.rng, 3)
+            data.append([jrand.normal(rng0, shape=(8,)),
+                         jrand.normal(rng1, shape=(4,))])
         # Write a callback
         def callback(step, params, grads, net_out, loss_out, eval_out,
                      total_loss, total_eval):
@@ -70,9 +70,9 @@ class LearnerTest(absltest.TestCase):
         # Build data.
         data = []
         for i in range(4):
-            rng, self.rng = jrand.split(self.rng, 2)
-            data.append([jrand.normal(rng, shape=(8,)),
-                         jrand.normal(rng, shape=(4,))])
+            rng0, rng1, self.rng = jrand.split(self.rng, 3)
+            data.append([jrand.normal(rng0, shape=(8,)),
+                         jrand.normal(rng1, shape=(4,))])
         # Write a callback
         def callback(step, net_out, loss_out, eval_out, total_loss, total_eval):
             print(step, jnp.mean(loss_out), jnp.mean(eval_out),
