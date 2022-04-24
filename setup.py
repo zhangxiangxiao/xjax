@@ -15,7 +15,7 @@ setuptools.setup(
         "License :: OSI Approved :: BSD 3-Clause License",
         "Operating System :: OS Independent",
     ],
-    packages=setuptools.find_packages(),
+    packages=['xjax'],
     python_requires=">=3.8",
     install_requires=['jax>=0.3.7'],
 )
