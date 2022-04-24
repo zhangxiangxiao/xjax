@@ -62,7 +62,7 @@ def Dropout(rng, p=0.5, mode='train'):
             new_rng, rng = jrand.split(states['rng'])
             keep = jrand.bernoulli(rng, 1 - p, inputs.shape)
             outputs = jnp.where(keep, inputs / (1 - p), 0)
-            return outputs, {'rng': states}
+            return outputs, {'rng': new_rng}
         else:
             return inputs, states
     return ModuleTuple(forward, None, {'rng': rng})
@@ -166,8 +166,7 @@ def Random(func, rng, *args, **kwargs):
     """Layer that generate random numbers."""
     def forward(params, inputs, states):
         rng, new_rng = jrand.split(states['rng'])
-        states['rng'] = new_rng
-        return func(rng, *args, **kwargs), states
+        return func(rng, *args, **kwargs), {'rng': new_rng}
     return ModuleTuple(forward, None, {'rng': rng})
 Normal = partial(Random, jrand.normal)
 Uniform = partial(Random, jrand.uniform)
@@ -294,7 +293,7 @@ def postprocess_states(states, size):
             if key == 'mean':
                 new_states[key] = mean_postprocess(states[key], size)
             else:
-                new_states[key] = states
+                new_states[key] = states[key]
     return new_states
 
 def vectorize(map_func, module, size, *args, **kwargs):
