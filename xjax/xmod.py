@@ -8,7 +8,6 @@ forward, backward, initial_params, initial_states = Model(*args, **kwargs)
 
 The `forward` function has the following signature:
 `net_outputs, loss_outputs, new_states = forward(params, inputs, states)'
-`net_outputs` may be `None` if it does not exist or is not accessible.
 
 The `backward` function has the following signature:
 `grads, net_outputs, loss_outputs, new_states = backward(params, inputs, states)`
@@ -24,6 +23,7 @@ from collections import namedtuple
 
 import jax
 from jax import numpy as jnp
+from xjax import xnn
 
 
 ModelTuple = namedtuple(
@@ -66,37 +66,6 @@ def map_ones_like(tree):
 
 def map_add(tree1, tree2):
     return jax.tree_map(jnp.add, tree1, tree2)
-
-
-def Module(module):
-    """A model which is simply an xjax.xnn module.
-
-    Args:
-      module: an xjax.xnn module that has learnable parameters whose outputs are
-        assumed to be loss values.
-
-    Returns:
-      forward: the forward function of module.
-      backward: the backward function defined for module.
-      initial_params: the initial parameters.
-      initial_states: the initial states.
-    """
-    module_forward, initial_params, module_states = module
-    # This is needed for compatibility with xmod.vmap and xmod.pmap
-    initial_states = (module_states,)
-    def forward(params, inputs, states):
-        _states, = states
-        outputs, _states = module_forward(params, inputs, _states)
-        states = (_states,)
-        return None, outputs, states
-    def backward(params, inputs, states):
-        _states, = states
-        vjpf, outputs, _states = vjp(module_forward, params, inputs, _states)
-        states = (_states,)
-        grads_outputs = map_ones_like(outputs)
-        grads = vjpf(grads_outputs)
-        return grads, None, outputs, states
-    return ModelTuple(forward, backward, initial_params, initial_states)
 
 
 def Model(net, loss):
@@ -165,13 +134,12 @@ def GAN(gen, disc, gen_loss, disc_loss):
     gen_loss_forward, gen_loss_params = gen_loss[0], gen_loss[1]
     disc_loss_forward, disc_loss_params = disc_loss[0], disc_loss[1]
     def forward(params, inputs, states):
-        gen_inputs, real_inputs = inputs
         gen_params, disc_params = params
         gen_states, disc_states, gen_loss_states, disc_loss_states = states
         gen_outputs, gen_states = gen_forward(
-            gen_params, gen_inputs, gen_states)
+            gen_params, None, gen_states)
         real_outputs, disc_states = disc_forward(
-            disc_params, real_inputs, disc_states)
+            disc_params, inputs, disc_states)
         fake_outputs, disc_states = disc_forward(
             disc_params, gen_outputs, disc_states)
         disc_outputs = [real_outputs, fake_outputs]
@@ -184,15 +152,14 @@ def GAN(gen, disc, gen_loss, disc_loss):
         states = (gen_states, disc_states, gen_loss_states, disc_loss_states)
         return net_outputs, loss_outputs, states
     def backward(params, inputs, states):
-        gen_inputs, real_inputs = inputs
         gen_params, disc_params = params
         gen_states, disc_states, gen_loss_states, disc_loss_states = states
         gen_loss_states, disc_loss_states = states[2], states[3]
         # Forward propagate and build backward graph
         gen_vjpf, gen_outputs, gen_states = vjp(
-            gen_forward, gen_params, gen_inputs, gen_states)
+            gen_forward, gen_params, None, gen_states)
         disc_vjpf_real, real_outputs, disc_states = vjp(
-            disc_forward, disc_params, real_inputs, disc_states)
+            disc_forward, disc_params, inputs, disc_states)
         disc_vjpf_fake, fake_outputs, disc_states = vjp_full(
             disc_forward, disc_params, gen_outputs, disc_states)
         disc_outputs = [real_outputs, fake_outputs]
@@ -223,11 +190,11 @@ def GAN(gen, disc, gen_loss, disc_loss):
 
 def vectorize_states(states, size):
     # Vectorize module states individually.
-    return (xnn.vectorize_states(s, size) for s in states)
+    return tuple(xnn.vectorize_states(s, size) for s in states)
 
 def postprocess_states(states, size):
     # Process module states individually.
-    return (xnn.postprocess_states(s, size) for s in states)
+    return tuple(xnn.postprocess_states(s, size) for s in states)
 
 def vectorize(map_func, model, size, *args, **kwargs):
     """Vectorize the model.

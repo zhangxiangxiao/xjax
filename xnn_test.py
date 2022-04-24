@@ -110,6 +110,9 @@ class TransferTest(absltest.TestCase):
     def test_exp(self):
         return self.template(xnn.Exp, jnp.exp)
 
+    def test_square(self):
+        return self.template(xnn.Square, jnp.square)
+
     def test_relu(self):
         return self.template(xnn.ReLU, jnn.relu)
 
