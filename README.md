@@ -23,7 +23,7 @@ model = xmod.Model(net, loss)
 # SGD optimizer.
 optimizer = xopt.SGD(model.params, rate=0.01, decay=0.001)
 
-# Put everything together into a leaner.
+# Put everything together into a learner.
 train, test, states = xdl.Learner(optimizer, model)
 
 # Create some artificial data - any iterable works.

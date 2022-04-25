@@ -1,15 +1,15 @@
 """
 Functional neural network library for JAX.
 
-Design principle: an xjax module is a function that returns 3 objects:
+Design principle: an xnn module is a function that returns 3 objects:
   forward: the forward function.
-  initial_params: initial module parameters; should be a pytree.
-  initial_states: initial states that forward will modify; should be a dict of
-    pytrees (see below for meaning of the dict keys)
+  params: initial module parameters; should be a pytree.
+  states: initial states that forward will modify; should be a dict of pytrees (
+    see below for meaning of the dict keys)
 initial_params and initial_states can be None if not needed.
 
 The signature of the forward function should be
-outputs, new_states = forward(params, inputs, states)
+outputs, states = forward(params, inputs, states)
 You should use the returned new states for the next call to forward.
 
 The states of a module consistitude a dict in which the keys control how to
