@@ -25,6 +25,7 @@ from __future__ import absolute_import
 
 from functools import partial
 from collections import namedtuple
+import math
 
 import jax
 import jax.numpy as jnp
@@ -32,6 +33,8 @@ import jax.nn as jnn
 import jax.nn.initializers as jinit
 import jax.random as jrand
 import jax.tree_util as jtree
+import jax.lax as jlax
+import jax._src.lax.convolution as jconv
 
 
 ModuleTuple = namedtuple('Module', ['forward', 'params', 'states'])
@@ -66,6 +69,97 @@ def Dropout(rng, p=0.5, mode='train'):
         else:
             return inputs, states
     return ModuleTuple(forward, None, {'rng': rng})
+
+
+def Conv(rng, in_dim, out_dim, kernel, stride=None, dilation=None,
+         padding='SAME', w_init=jinit.glorot_normal(1, 0),
+         b_init=jinit.normal(1e-6), *args, **kwargs):
+    """n-D convolutional layer.
+
+    Args:
+      in_dim: input feature dimension.
+      out_dim: output feature dimension.
+      kernel: a tuple of n integers representing convolution kernel size.
+      stride: None or a tuple of n integers representing convolution strides.
+      dilation: None or a tuple of n integers representing dilation.
+      padding: string 'SAME', 'VALID' or a tuple of n (low, high) integer pairs
+        that gives the padding to apply before and after each spatial dimension.
+      w_init: initializer of kernel weights.
+      b_init: initializer of bias vector.
+
+    Returns:
+      forward: the forward function `outputs, states = forward(params, inputs,
+        states)`. `inputs` should be a rank n + 1 input array in which the first
+        dimension is the feature or channel of size in_dim.
+      params: initial parameters for the convolutional layer.
+      states: initial states for the convolutional layer.
+    """
+    stride = stride or (1,) * len(kernel)
+    dilation = dilation or (1,) * len(kernel)
+    w_rng, b_rng = jrand.split(rng)
+    w_init = w_init or jinit.glorot_normal(1, 0)
+    initial_w = w_init(w_rng, (out_dim, in_dim) + kernel)
+    initial_b = b_init(b_rng, (out_dim,) + (1,) * len(kernel))
+    initial_params = (initial_w, initial_b)
+    def forward(params, inputs, states):
+        w, b = params
+        batch_mode = (inputs.ndim == w.ndim)
+        if not batch_mode:
+            inputs = jnp.expand_dims(inputs, 0)
+        outputs = jlax.conv_general_dilated(
+            inputs, w, stride, padding, None, dilation, *args, **kwargs) + b
+        if not batch_mode:
+            outputs = jnp.squeeze(outputs, 0)
+        return outputs, states
+    return ModuleTuple(forward, initial_params, None)
+
+
+def Deconv(rng, in_dim, out_dim, kernel, stride=None, dilation=None,
+           padding='SAME', w_init=jinit.glorot_normal(1, 0),
+           b_init=jinit.normal(1e-6), *args, **kwargs):
+    """n-D deconvolutional (or transposed convolutional) layer. The parameters
+    stride, dilation, and padding all correspond to a Conv layer and will
+    be transposed for deconvolution.
+
+    Args:
+      in_dim: input feature dimension.
+      out_dim: output feature dimension.
+      kernel: a tuple of n integers representing convolution kernel size.
+      stride: None or a tuple of n integers representing convolution strides.
+      dilation: None or a tuple of n integers representing dilation.
+      padding: string 'SAME', 'VALID' or a tuple of n (low, high) integer pairs
+        that gives the convolution padding.
+      w_init: initializer of kernel weights.
+      b_init: initializer of bias vector.
+
+    Returns:
+      forward: the forward function `outputs, states = forward(params, inputs,
+        states)`. `inputs` should be a rank n + 1 input array in which the first
+        dimension is the feature or channel of size in_dim.
+      params: initial parameters for the convolutional layer.
+      states: initial states for the convolutional layer.
+    """
+    dimension = jlax.ConvDimensionNumbers(
+        tuple(range(len(kernel) + 2)), tuple(range(len(kernel) + 2)),
+        tuple(range(len(kernel) + 2)))
+    stride = stride or (1,) * len(kernel)
+    dilation = dilation or (1,) * len(kernel)
+    w_rng, b_rng = jrand.split(rng)
+    initial_w = w_init(w_rng, (out_dim, in_dim) + kernel)
+    initial_b = b_init(b_rng, (out_dim,) + (1,) * len(kernel))
+    initial_params = (initial_w, initial_b)
+    def forward(params, inputs, states):
+        w, b = params
+        batch_mode = (inputs.ndim == w.ndim)
+        if not batch_mode:
+            inputs = jnp.expand_dims(inputs, 0)
+        outputs = jlax.conv_transpose(
+            inputs, w, stride, padding, dilation, dimension,
+            *args, **kwargs) + b
+        if not batch_mode:
+            outputs = jnp.squeeze(outputs, 0)
+        return outputs, states
+    return ModuleTuple(forward, initial_params, None)
 
 
 def SingleInput(func, *args, **kwargs):

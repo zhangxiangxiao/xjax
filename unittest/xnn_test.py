@@ -8,7 +8,7 @@ from absl.testing import absltest
 import jax.nn as jnn
 import jax.numpy as jnp
 import jax.random as jrand
-import numpy as np
+import jax.lax as jlax
 
 
 class LinearTest(absltest.TestCase):
@@ -80,6 +80,67 @@ class DropoutTest(absltest.TestCase):
         inputs = jrand.normal(inputs_rng, shape=(2,8))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 8), outputs.shape)
+
+
+class ConvTest(absltest.TestCase):
+    def setUp(self):
+        # A Logic Named Joe
+        rng, self.rng = jrand.split(jrand.PRNGKey(1946))
+        # A 3-D convolutional layer with stride and dilation.
+        self.module = xnn.Conv(
+            rng, 8, 4, kernel=(2, 3, 5), stride=(2, 1, 3), dilation=(1, 3, 2))
+
+    def test_forward(self):
+        forward, params, states = self.module
+        rng, self.rng = jrand.split(self.rng)
+        inputs = jrand.normal(rng, shape=(8, 16, 32, 32))
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((4, 8, 32, 11), outputs.shape)
+        w, b = params
+        ref_inputs = jnp.expand_dims(inputs, 0)
+        ref_outputs = jlax.conv_general_dilated(
+            ref_inputs, w, window_strides=(2, 1, 3), padding='SAME',
+            lhs_dilation=None, rhs_dilation=(1, 3, 2)) + b
+        ref_outputs = jnp.squeeze(ref_outputs, 0)
+        self.assertTrue(jnp.allclose(ref_outputs, outputs))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        rng, self.rng = jrand.split(self.rng)
+        inputs = jrand.normal(rng, shape=(2, 8, 16, 32, 32))
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((2, 4, 8, 32, 11), outputs.shape)
+
+
+class DeconvTest(absltest.TestCase):
+    def setUp(self):
+        # A Logic Named Joe
+        rng, self.rng = jrand.split(jrand.PRNGKey(1946))
+        # A 3-D deconvolutional layer with stride and dilation.
+        self.module = xnn.Deconv(
+            rng, 8, 4, kernel=(2, 3, 5), stride=(2, 1, 3), dilation=(1, 3, 2))
+
+    def test_forward(self):
+        forward, params, states = self.module
+        rng, self.rng = jrand.split(self.rng)
+        inputs = jrand.normal(rng, shape=(8, 16, 32, 32))
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((4, 32, 32, 96), outputs.shape)
+        w, b = params
+        ref_inputs = jnp.expand_dims(inputs, 0)
+        dimension = jlax.ConvDimensionNumbers(
+            tuple(range(5)), tuple(range(5)), tuple(range(5)))
+        ref_outputs = jlax.conv_transpose(
+            ref_inputs, w, (2, 1, 3), 'SAME', (1, 3, 2), dimension) + b
+        ref_outputs = jnp.squeeze(ref_outputs, 0)
+        self.assertTrue(jnp.allclose(ref_outputs, outputs))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        rng, self.rng = jrand.split(self.rng)
+        inputs = jrand.normal(rng, shape=(2, 8, 16, 32, 32))
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((2, 4, 32, 32, 96), outputs.shape)
 
 
 class TransferTest(absltest.TestCase):
