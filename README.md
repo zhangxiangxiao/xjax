@@ -1,18 +1,19 @@
 # XJAX
 A Simple JAX framework for neural networks. Everything is done in functional programming.
 
+XJAX is highly experimental and not ready for use, but feel free to grab and do anything to it.
+
 ## Short example
 ```python
-from xjax import xnn, xopt, xmod, xeval, xdl
-import jax.numpy as jnp
+from xjax import xnn, xopt, xmod, xdl, xrand
 import jax.random as jrand
-
-rng0, rng1, rng2, rng = jrand.split(jrand.PRNGKey(1946), 4)
 
 # A 2-layer MLP feed-forward neural net.
 net = xnn.Sequential(
-    xnn.Linear(rng0, 8, 16), xnn.ReLU(), xnn.Dropout(rng1, p=0.5),
-    xnn.Linear(rng2, 16, 4))
+    xnn.Linear(8, 16),
+    xnn.Dropout(p=0.5),
+    xnn.ReLU(),
+    xnn.Linear(16, 4))
 
 # Square loss.
 loss = xnn.Sequential(xnn.Subtract(), xnn.Square(), xnn.Sum())
@@ -29,7 +30,7 @@ train, test, states = xdl.Learner(optimizer, model)
 # Create some artificial data - any iterable works.
 data = []
 for i in range(4):
-    rng0, rng1, rng = jrand.split(rng, 3)
+    rng0, rng1 = xrand.split(2)
     data.append([jrand.normal(rng0, shape=(8,)),
                  jrand.normal(rng1, shape=(4,))])
 
