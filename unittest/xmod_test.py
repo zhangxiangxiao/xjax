@@ -6,6 +6,7 @@ from xjax import xmod
 
 from absl.testing import absltest
 from xjax import xnn
+from xjax import xrand
 import jax
 import jax.numpy as jnp
 import jax.random as jrand
@@ -13,19 +14,17 @@ import jax.random as jrand
 
 class ModelTest(absltest.TestCase):
     def setUp(self):
-        # A Logic Named Joe
-        rng1, rng2, rng3, rng4, self.rng = jrand.split(jrand.PRNGKey(1946), 5)
+        rng1, rng2 = xrand.split(2)
         # net is a 2-layer MLP.
         self.net = xnn.Sequential(
-            xnn.Linear(rng1, 8, 4), xnn.ReLU(),
-            xnn.Linear(rng2, 4, 2))
+            xnn.Linear(8, 4), xnn.ReLU(), xnn.Linear(4, 2))
         # Loss is square distance.
         self.loss = xnn.Sequential(
             xnn.Subtract(), xnn.Square(), xnn.Sum())
         self.model = xmod.Model(self.net, self.loss)
         # inputs = [net_inputs, net_targets].
-        self.inputs = [jrand.normal(rng3, shape=(8,)),
-                       jrand.normal(rng4, shape=(2,))]
+        self.inputs = [jrand.normal(rng1, shape=(8,)),
+                       jrand.normal(rng2, shape=(2,))]
 
     def test_forward(self):
         forward, _, params, states = self.model
@@ -61,7 +60,7 @@ class ModelTest(absltest.TestCase):
 
     def test_vmap(self):
         forward, backward, params, states = xmod.vmap(self.model, 2)
-        rng1, rng2, self.rng = jrand.split(self.rng, 3)
+        rng1, rng2 = xrand.split(2)
         inputs = [jrand.normal(rng1, shape=(2, 8)),
                   jrand.normal(rng2, shape=(2, 2))]
         net_outputs, loss_outputs, states = forward(params, inputs, states)
@@ -75,16 +74,14 @@ class ModelTest(absltest.TestCase):
 
 class GANTest(absltest.TestCase):
     def setUp(self):
-        # A Logic Named Joe
-        rng1, rng2, rng3, rng4, rng5, rng6, self.rng = jrand.split(
-            jrand.PRNGKey(1946), 7)
+        rng = xrand.split()
         # Generator is a 2-layer MLP.
         self.gen = xnn.Sequential(
-            xnn.Normal(rng1, shape=(2,)),
-            xnn.Linear(rng2, 2, 4), xnn.ReLU(),
-            xnn.Linear(rng3, 4, 8))
+            xnn.Normal(shape=(2,)),
+            xnn.Linear(2, 4), xnn.Dropout(p=0.5), xnn.ReLU(),
+            xnn.Linear(4, 8))
         # Discriminator is a linear model.
-        self.disc = xnn.Linear(rng4, 8, 1)
+        self.disc = xnn.Linear( 8, 1)
         # Generator loss motivates the fake output to zero.
         self.gen_loss = xnn.Norm()
         # Discriminator loss motiviates the real output to zero, fake to -inf.
@@ -93,7 +90,7 @@ class GANTest(absltest.TestCase):
         # Build the GAN model
         self.model = xmod.GAN(
             self.gen, self.disc, self.gen_loss, self.disc_loss)
-        self.inputs = jrand.normal(rng6, shape=(8,))
+        self.inputs = jrand.normal(rng, shape=(8,))
 
     def test_forward(self):
         forward, _, params, states = self.model
@@ -152,7 +149,7 @@ class GANTest(absltest.TestCase):
 
     def test_vmap(self):
         forward, backward, params, states = xmod.vmap(self.model, 2)
-        inputs_rng, self.rng = jrand.split(self.rng)
+        inputs_rng = xrand.split()
         inputs = jrand.normal(inputs_rng, shape=(2,8))
         ([gen_outputs, [real_outputs, fake_outputs]],
          [gen_loss_outputs, disc_loss_outputs], states) = forward(

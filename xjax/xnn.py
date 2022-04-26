@@ -34,14 +34,15 @@ import jax.nn.initializers as jinit
 import jax.random as jrand
 import jax.tree_util as jtree
 import jax.lax as jlax
-import jax._src.lax.convolution as jconv
+from xjax import xrand
 
 
 ModuleTuple = namedtuple('Module', ['forward', 'params', 'states'])
 
 
-def Linear(rng, in_dim, out_dim, w_init=jinit.glorot_normal(),
-           b_init=jinit.normal()):
+def Linear(in_dim, out_dim, w_init=jinit.glorot_normal(), b_init=jinit.normal(),
+           rng=None):
+    rng = rng if rng is not None else xrand.split()
     w_rng, b_rng = jrand.split(rng)
     initial_w = w_init(w_rng, (in_dim, out_dim))
     initial_b = b_init(b_rng, (out_dim,))
@@ -52,14 +53,16 @@ def Linear(rng, in_dim, out_dim, w_init=jinit.glorot_normal(),
     return ModuleTuple(forward, initial_params, None)
 
 
-def Embed(rng, embed_size, embed_dim, embed_init=jinit.normal()):
+def Embed(embed_size, embed_dim, embed_init=jinit.normal(), rng=None):
+    rng = rng if rng is not None else xrand.split()
     initial_params = embed_init(rng, (embed_size, embed_dim))
     def forward(params, inputs, states):
         return jnp.take(params, inputs, axis=0), states
     return ModuleTuple(forward, initial_params, None)
 
 
-def Dropout(rng, p=0.5, mode='train'):
+def Dropout(p=0.5, mode='train', rng=None):
+    rng = rng if rng is not None else xrand.split()
     def forward(params, inputs, states):
         if mode == 'train' and p != 0:
             new_rng, rng = jrand.split(states['rng'])
@@ -71,9 +74,9 @@ def Dropout(rng, p=0.5, mode='train'):
     return ModuleTuple(forward, None, {'rng': rng})
 
 
-def Conv(rng, in_dim, out_dim, kernel, stride=None, dilation=None,
+def Conv(in_dim, out_dim, kernel, stride=None, dilation=None,
          padding='SAME', w_init=jinit.glorot_normal(1, 0),
-         b_init=jinit.normal(1e-6), *args, **kwargs):
+         b_init=jinit.normal(1e-6), rng=None, *args, **kwargs):
     """n-D convolutional layer.
 
     Args:
@@ -86,6 +89,7 @@ def Conv(rng, in_dim, out_dim, kernel, stride=None, dilation=None,
         that gives the padding to apply before and after each spatial dimension.
       w_init: initializer of kernel weights.
       b_init: initializer of bias vector.
+      rng: random key. Use xrand.split() if None.
 
     Returns:
       forward: the forward function `outputs, states = forward(params, inputs,
@@ -94,10 +98,10 @@ def Conv(rng, in_dim, out_dim, kernel, stride=None, dilation=None,
       params: initial parameters for the convolutional layer.
       states: initial states for the convolutional layer.
     """
-    stride = stride or (1,) * len(kernel)
-    dilation = dilation or (1,) * len(kernel)
+    rng = rng if rng is not None else xrand.split()
+    stride = stride if stride is not None else (1,) * len(kernel)
+    dilation = dilation if dilation is not None else (1,) * len(kernel)
     w_rng, b_rng = jrand.split(rng)
-    w_init = w_init or jinit.glorot_normal(1, 0)
     initial_w = w_init(w_rng, (out_dim, in_dim) + kernel)
     initial_b = b_init(b_rng, (out_dim,) + (1,) * len(kernel))
     initial_params = (initial_w, initial_b)
@@ -114,9 +118,9 @@ def Conv(rng, in_dim, out_dim, kernel, stride=None, dilation=None,
     return ModuleTuple(forward, initial_params, None)
 
 
-def Deconv(rng, in_dim, out_dim, kernel, stride=None, dilation=None,
-           padding='SAME', w_init=jinit.glorot_normal(1, 0),
-           b_init=jinit.normal(1e-6), *args, **kwargs):
+def Deconv(in_dim, out_dim, kernel, stride=None, dilation=None, padding='SAME',
+           w_init=jinit.glorot_normal(1, 0), b_init=jinit.normal(1e-6),
+           rng=None, *args, **kwargs):
     """n-D deconvolutional (or transposed convolutional) layer. The parameters
     stride, dilation, and padding all correspond to a Conv layer and will
     be transposed for deconvolution.
@@ -139,11 +143,12 @@ def Deconv(rng, in_dim, out_dim, kernel, stride=None, dilation=None,
       params: initial parameters for the convolutional layer.
       states: initial states for the convolutional layer.
     """
+    rng = rng if rng is not None else xrand.split()
     dimension = jlax.ConvDimensionNumbers(
         tuple(range(len(kernel) + 2)), tuple(range(len(kernel) + 2)),
         tuple(range(len(kernel) + 2)))
-    stride = stride or (1,) * len(kernel)
-    dilation = dilation or (1,) * len(kernel)
+    stride = stride if stride is not None else (1,) * len(kernel)
+    dilation = dilation if dilation is not None else (1,) * len(kernel)
     w_rng, b_rng = jrand.split(rng)
     initial_w = w_init(w_rng, (out_dim, in_dim) + kernel)
     initial_b = b_init(b_rng, (out_dim,) + (1,) * len(kernel))
@@ -257,11 +262,12 @@ MatMul = partial(MultiInput, jnp.matmul)
 Dot = partial(MultiInput, jnp.dot)
 
 
-def Random(func, rng, *args, **kwargs):
+def Random(func, rng=None, *args, **kwargs):
     """Layer that generate random numbers."""
+    rng = rng if rng is not None else xrand.split()
     def forward(params, inputs, states):
-        rng, new_rng = jrand.split(states['rng'])
-        return func(rng, *args, **kwargs), {'rng': new_rng}
+        func_rng, new_rng = jrand.split(states['rng'])
+        return func(func_rng, *args, **kwargs), {'rng': new_rng}
     return ModuleTuple(forward, None, {'rng': rng})
 Normal = partial(Random, jrand.normal)
 Uniform = partial(Random, jrand.uniform)

@@ -8,6 +8,7 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import jax.random as jrand
+from xjax import xrand
 from xjax import xnn
 from xjax import xmod
 from xjax import xeval
@@ -15,15 +16,13 @@ from xjax import xopt
 
 class LearnerTest(absltest.TestCase):
     def setUp(self):
-        # Logic Named Joe
-        rng0, rng1, rng2, self.rng = jrand.split(jrand.PRNGKey(1946), 4)
         # Network is a 2-layer MLP.
         def net(mode='train'):
             return xnn.Sequential(
-                xnn.Linear(rng0, 8, 16),
+                xnn.Linear(8, 16),
                 xnn.ReLU(),
-                xnn.Dropout(rng1, p=0.5, mode=mode),
-                xnn.Linear(rng2, 16, 4))
+                xnn.Dropout(p=0.5, mode=mode),
+                xnn.Linear(16, 4))
         # Loss is square loss.
         loss = xnn.Sequential(xnn.Subtract(), xnn.Square(), xnn.Sum())
         self.train_model = xmod.Model(net('train'), loss)
@@ -46,7 +45,7 @@ class LearnerTest(absltest.TestCase):
         # Build data.
         data = []
         for i in range(4):
-            rng0, rng1, self.rng = jrand.split(self.rng, 3)
+            rng0, rng1 = xrand.split(2)
             data.append([jrand.normal(rng0, shape=(8,)),
                          jrand.normal(rng1, shape=(4,))])
         # Write a callback
@@ -70,7 +69,7 @@ class LearnerTest(absltest.TestCase):
         # Build data.
         data = []
         for i in range(4):
-            rng0, rng1, self.rng = jrand.split(self.rng, 3)
+            rng0, rng1 = xrand.split(2)
             data.append([jrand.normal(rng0, shape=(8,)),
                          jrand.normal(rng1, shape=(4,))])
         # Write a callback
