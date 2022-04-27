@@ -34,6 +34,7 @@ import jax.nn.initializers as jinit
 import jax.random as jrand
 import jax.tree_util as jtree
 import jax.lax as jlax
+import jax.image as jimage
 from xjax import xrand
 
 
@@ -165,6 +166,102 @@ def Deconv(in_dim, out_dim, kernel, stride=None, dilation=None, padding='SAME',
             outputs = jnp.squeeze(outputs, 0)
         return outputs, states
     return ModuleTuple(forward, initial_params, None)
+
+
+def MaxPool(kernel, stride, dilation, padding='SAME', *args, **kwargs):
+    """n-D max pooling layer.
+
+    Args:
+      kernel: a tuple of n integers representing the pooling kernel size.
+      stride: None or a tuple of n integers representing pooling strides.
+      dilation: None or a tuple of n integers representing dilation.
+      padding: string 'SAME', 'VALID', or a tuple of n (low, high) integer pairs
+        that gives the padding to apply before and after each spatial dimension.
+
+    Return:
+      forward: the forward function `outputs, states = forward(params, inputs,
+        states)`. `inputs` should be a rank n + 1 input array in which the first
+        dimension is the feature or channel.
+      params: initial parameters for the pooling layer.
+      states: initial states for the pooling layer.
+    """
+    stride = stride if stride is not None else kernel
+    dilation = dilation if dilation is not None else (1,) * len(kernel)
+    # The first dim is the feature dim.
+    kernel = (1,) + kernel
+    stride = (1,) + stride
+    dilation = (1,) + dilation
+    def forward(params, inputs, states):
+        batch_mode = (inputs.ndim == w.ndim)
+        if batch_mode:
+            _kernel = (1,) + kernel
+            _stride = (1,) + stride
+            _dilation = (1,) + dilation
+        else:
+            _kernel, _stride, _dilation = kernel, stride, dilation
+        outputs = jlax.reduce_window(
+            inputs, -jnp.inf, lax.max, kernel, stride, padding, *args,
+            window_dilation=dilation, **kwargs)
+        return outputs, states
+    return ModuleTuple(forward, None, None)
+
+
+def AvgPool(kernel, stride, dilation, padding='SAME', *args, **kwargs):
+    """n-D average pooling layer.
+
+    Args:
+      kernel: a tuple of n integers representing the pooling kernel size.
+      stride: None or a tuple of n integers representing pooling strides.
+      dilation: None or a tuple of n integers representing dilation.
+      padding: string 'SAME', 'VALID', or a tuple of n (low, high) integer pairs
+        that gives the padding to apply before and after each spatial dimension.
+
+    Returns:
+      forward: the forward function `outputs, states = forward(params, inputs,
+        states)`. `inputs` should be a rank n + 1 input array in which the first
+        dimension is the feature or channel.
+      params: initial parameters for the pooling layer.
+      states: initial states for the pooling layer.
+    """
+    stride = stride if stride is not None else kernel
+    dilation = dilation if dilation is not None else (1,) * len(kernel)
+    # The first dim is the feature dim.
+    kernel = (1,) + kernel
+    stride = (1,) + stride
+    dilation = (1,) + dilation
+    def forward(params, inputs, states):
+        batch_mode = (inputs.ndim == w.ndim)
+        if batch_mode:
+            _kernel = (1,) + kernel
+            _stride = (1,) + stride
+            _dilation = (1,) + dilation
+        else:
+            _kernel, _stride, _dilation = kernel, stride, dilation
+        outputs = jlax.reduce_window(
+            inputs / math.prod(_kernel), -jnp.inf, lax.sum, kernel, stride,
+            padding, *args, window_dilation=dilation, **kwargs)        
+        return outputs, states
+    return ModuleTuple(forward, None, None)
+
+
+def Resize(factor, method='nearest', *args, **kwargs):
+    """Resize the input using jax.image.resize().
+    
+    Args:
+      factor: the factor of resize. The shape of outputs is factor multiplying
+        the shape of inputs, floored to the nearest integer.
+      method: the resize method.
+
+    Returns:
+      forward: the forward function.
+      params: initial parameteers.
+      states: initial states.
+    """
+    def forward(params, inputs, states):
+        shape = (math.floor(s * f) for s, f in zip(inputs.shape, factor))
+        outputs = jimage.resize(inputs, shape, method, *args, **kwargs)
+        return outputs, states
+    return ModuleTuple(forward, None, None)
 
 
 def SingleInput(func, *args, **kwargs):
