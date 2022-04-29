@@ -188,6 +188,46 @@ class ResizeTest(absltest.TestCase):
         self.assertEqual((2, 8, 32, 16, 48), outputs.shape)
 
 
+class FlattenUpToTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.FlattenUpTo([0, 1, [2, 3]])
+
+    def test_forward(self):
+        forward, params, states = self.module
+        inputs = [jrand.normal(xrand.split(), shape=(8,)),
+                  [jrand.normal(xrand.split(), shape=(8,)),
+                   jrand.normal(xrand.split(), shape=(8,))],
+                  [jrand.normal(xrand.split(), shape=(8,)),
+                   [jrand.normal(xrand.split(), shape=(8,)),
+                    jrand.normal(xrand.split(), shape=(8,))]]]
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(outputs[0], inputs[0]))
+        self.assertTrue(jnp.array_equal(outputs[1][0], inputs[1][0]))
+        self.assertTrue(jnp.array_equal(outputs[1][1], inputs[1][1]))
+        self.assertTrue(jnp.array_equal(outputs[2][0], inputs[2][0][0]))
+        self.assertTrue(jnp.array_equal(outputs[2][1], inputs[2][0][1]))
+        self.assertTrue(jnp.array_equal(outputs[3][0], inputs[2][1][0]))
+        self.assertTrue(jnp.array_equal(outputs[3][1], inputs[2][1][1]))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
+                  [jrand.normal(xrand.split(), shape=(2, 8)),
+                   jrand.normal(xrand.split(), shape=(2, 8))],
+                  [jrand.normal(xrand.split(), shape=(2, 8)),
+                   [jrand.normal(xrand.split(), shape=(2, 8)),
+                    jrand.normal(xrand.split(), shape=(2, 8))]]]
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(outputs[0], inputs[0]))
+        self.assertTrue(jnp.array_equal(outputs[1][0], inputs[1][0]))
+        self.assertTrue(jnp.array_equal(outputs[1][1], inputs[1][1]))
+        self.assertTrue(jnp.array_equal(outputs[2][0], inputs[2][0][0]))
+        self.assertTrue(jnp.array_equal(outputs[2][1], inputs[2][0][1]))
+        self.assertTrue(jnp.array_equal(outputs[3][0], inputs[2][1][0]))
+        self.assertTrue(jnp.array_equal(outputs[3][1], inputs[2][1][1]))
+
+
+
 class TransferTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
         self.module = module(*args, **kwargs)

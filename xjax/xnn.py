@@ -54,11 +54,12 @@ def Linear(in_dim, out_dim, w_init=jinit.glorot_normal(), b_init=jinit.normal(),
     return ModuleTuple(forward, initial_params, None)
 
 
-def Embed(embed_size, embed_dim, embed_init=jinit.normal(), rng=None):
+def Embed(embed_size, embed_dim, embed_init=jinit.normal(), rng=None,
+          *args, **kwargs):
     rng = rng if rng is not None else xrand.split()
     initial_params = embed_init(rng, (embed_size, embed_dim))
     def forward(params, inputs, states):
-        return jnp.take(params, inputs, axis=0), states
+        return jnp.take(params, inputs, *args, axis=0, **kwargs), states
     return ModuleTuple(forward, initial_params, None)
 
 
@@ -259,6 +260,23 @@ def Resize(factor, method='nearest', *args, **kwargs):
         shape = (math.floor(s * f) for s, f in zip(inputs.shape, factor))
         outputs = jimage.resize(inputs, shape, method, *args, **kwargs)
         return outputs, states
+    return ModuleTuple(forward, None, None)
+
+
+def FlattenUpTo(tree):
+    """Flattens inputs according to the structure of tree.
+
+    Args:
+      tree: a tree representing the tree structure.
+
+    Returns:
+      forward: the forward function.
+      params: initial parameteers.
+      states: initial states.
+    """
+    treedef = jtree.tree_structure(tree)
+    def forward(params, inputs, states):
+        return treedef.flatten_up_to(inputs), states
     return ModuleTuple(forward, None, None)
 
 
