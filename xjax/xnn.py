@@ -108,11 +108,17 @@ def Conv(in_dim, out_dim, kernel, stride=None, dilation=None,
     initial_params = (initial_w, initial_b)
     def forward(params, inputs, states):
         w, b = params
-        batch_mode = (inputs.ndim == w.ndim)
+        batch_mode = (inputs.ndim >= w.ndim)
         if not batch_mode:
             inputs = jnp.expand_dims(inputs, 0)
+        batch_ndim = inputs.ndim - w.ndim + 1
+        batch_dims = inputs.shape[0:batch_ndim]
+        inputs = jnp.reshape(
+            inputs, (math.prod(batch_dims),) + inputs.shape[batch_ndim:])
         outputs = jlax.conv_general_dilated(
             inputs, w, stride, padding, None, dilation, *args, **kwargs) + b
+        outputs = jnp.reshape(
+            outputs, batch_dims + outputs.shape[1:])
         if not batch_mode:
             outputs = jnp.squeeze(outputs, 0)
         return outputs, states
@@ -156,12 +162,18 @@ def Deconv(in_dim, out_dim, kernel, stride=None, dilation=None, padding='SAME',
     initial_params = (initial_w, initial_b)
     def forward(params, inputs, states):
         w, b = params
-        batch_mode = (inputs.ndim == w.ndim)
+        batch_mode = (inputs.ndim >= w.ndim)
         if not batch_mode:
             inputs = jnp.expand_dims(inputs, 0)
+        batch_ndim = inputs.ndim - w.ndim + 1
+        batch_dims = inputs.shape[0:batch_ndim]
+        inputs = jnp.reshape(
+            inputs, (math.prod(batch_dims),) + inputs.shape[batch_ndim:])
         outputs = jlax.conv_transpose(
             inputs, w, stride, padding, dilation, dimension,
             *args, **kwargs) + b
+        outputs = jnp.reshape(
+            outputs, batch_dims + outputs.shape[1:])
         if not batch_mode:
             outputs = jnp.squeeze(outputs, 0)
         return outputs, states
@@ -187,21 +199,14 @@ def MaxPool(kernel, stride, dilation, padding='SAME', *args, **kwargs):
     """
     stride = stride if stride is not None else kernel
     dilation = dilation if dilation is not None else (1,) * len(kernel)
-    # The first dim is the feature dim.
-    kernel = (1,) + kernel
-    stride = (1,) + stride
-    dilation = (1,) + dilation
     def forward(params, inputs, states):
-        batch_mode = (inputs.ndim == w.ndim)
-        if batch_mode:
-            _kernel = (1,) + kernel
-            _stride = (1,) + stride
-            _dilation = (1,) + dilation
-        else:
-            _kernel, _stride, _dilation = kernel, stride, dilation
+        extra_ndim = inputs.ndim - len(kernel)
+        _kernel = (1,) * extra_ndim + kernel
+        _stride = (1,) * extra_ndim + stride
+        _dilation = (1,) * extra_ndim + dilation
         outputs = jlax.reduce_window(
-            inputs, -jnp.inf, lax.max, kernel, stride, padding, *args,
-            window_dilation=dilation, **kwargs)
+            inputs, -jnp.inf, jlax.max, _kernel, _stride, padding, *args,
+            window_dilation=_dilation, **kwargs)
         return outputs, states
     return ModuleTuple(forward, None, None)
 
@@ -225,21 +230,14 @@ def AvgPool(kernel, stride, dilation, padding='SAME', *args, **kwargs):
     """
     stride = stride if stride is not None else kernel
     dilation = dilation if dilation is not None else (1,) * len(kernel)
-    # The first dim is the feature dim.
-    kernel = (1,) + kernel
-    stride = (1,) + stride
-    dilation = (1,) + dilation
     def forward(params, inputs, states):
-        batch_mode = (inputs.ndim == w.ndim)
-        if batch_mode:
-            _kernel = (1,) + kernel
-            _stride = (1,) + stride
-            _dilation = (1,) + dilation
-        else:
-            _kernel, _stride, _dilation = kernel, stride, dilation
+        extra_ndim = inputs.ndim - len(kernel)
+        _kernel = (1,) * extra_ndim + kernel
+        _stride = (1,) * extra_ndim + stride
+        _dilation = (1,) * extra_ndim + dilation
         outputs = jlax.reduce_window(
-            inputs / math.prod(_kernel), -jnp.inf, lax.sum, kernel, stride,
-            padding, *args, window_dilation=dilation, **kwargs)        
+            inputs / math.prod(_kernel), -jnp.inf, jlax.add, _kernel, _stride,
+            padding, *args, window_dilation=_dilation, **kwargs)
         return outputs, states
     return ModuleTuple(forward, None, None)
 
