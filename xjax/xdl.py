@@ -12,6 +12,7 @@ import pickle
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 
 LearnerTuple = namedtuple('LearnerTuple', ['train', 'test', 'states'])
@@ -136,9 +137,13 @@ def dumps(states):
 
 def load(fd):
     """Load states from file."""
-    return pickle.load(fd)
+    states = pickle.load(fd)
+    return jax.tree_map(
+        lambda x: jnp.array(x) if isinstance(x, np.ndarray) else x, states)
 
 
 def loads(data):
     """Loads states from bytes."""
-    return pickle.loads(data)
+    states = pickle.loads(data)
+    return jax.tree_map(
+        lambda x: jnp.array(x) if isinstance(x, np.ndarray) else x, states)
