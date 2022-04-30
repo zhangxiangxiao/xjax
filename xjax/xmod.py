@@ -246,7 +246,7 @@ def ParallelEmbed(*args):
         grads_net_outputs, _ = loss_vjpf(grads_loss_outputs)
         grads_net_params, grads_embed_outputs = net_vjpf(grads_net_outputs)
         # Build segment gradients for embed modules.
-        grads_embed_params = tuple([*zip(embed_inputs, grads_embed_outputs)])
+        grads_embed_params = tuple(zip(embed_inputs, grads_embed_outputs))
         grads = (grads_embed_params, grads_net_params)
         return grads, net_outputs, loss_outputs, states
     return ModelTuple(forward, backward, initial_params, initial_states)
