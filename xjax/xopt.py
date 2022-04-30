@@ -11,9 +11,9 @@ states[0] is always the current step count.
 """
 
 from __future__ import absolute_import
-
 from functools import wraps, partial
 from collections import namedtuple
+import math
 
 import jax
 import jax.tree_util as jtree
@@ -58,13 +58,21 @@ def callable_schedule(schedule):
 
 
 def SGD(initial_params, rate=0.1, decay=0):
-    """SGD optimizer."""
+    """SGD optimizer. Supports both dense and segment gradients."""
     rate = callable_schedule(rate)
     decay = callable_schedule(decay)
     @tree_update
     def update(step, params, grads, states):
-        grads = grads + decay(step) * params
-        new_params = params - rate(step) * grads
+        if isinstance(grads, jnp.ndarray):
+            # Dense gradients.
+            grads = grads + decay(step) * params
+            new_params = params - rate(step) * grads
+        else:
+            # Segment gradients.
+            index, grads_value = grads
+            params_value = jnp.take(params, index, axis=0)
+            grads_value = grads_value + decay(step) * params_value
+            new_params = params.at[index].add(-rate(step) * grads_value)
         return new_params, states
     @tree_init
     def init(initial_params):
@@ -98,8 +106,18 @@ def vectorize(optimizer):
     opt_update, initial_states = optimizer
     def update(params, grads, states):
         def leaf_reduce(_params, _grads):
-            _grads = jnp.reshape(_grads, (-1,) + _params.shape)
-            return jnp.mean(_grads, axis=0)
+            if isinstance(_grads, jnp.ndarray):
+                # Dense gradient.
+                _grads = jnp.reshape(_grads, (-1,) + _params.shape)
+                return jnp.mean(_grads, axis=0)
+            else:
+                # Segment gradient.
+                _index, _grads_value = _grads
+                _grads_value = _grads_value / math.prod(_index.shape[0:-1])
+                _grads_value = jnp.reshape(
+                    _grads_value, (-1,) + _params.shape[1:])
+                _index = jnp.reshape(_index, (-1,))
+                return (_index, _grads_value)
         grads = jax.tree_map(leaf_reduce, params, grads)
         return opt_update(params, grads, states)
     return OptimizerTuple(update, initial_states)

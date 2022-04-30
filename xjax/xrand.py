@@ -1,16 +1,17 @@
 """Random generators for XJAX.
 
 xjax.xrand maintains an internal rng that is initialized by
-jax.random.PRNGKey(1946). It has the following functions:
+jax.random.PRNGKey(time.time_ns()). It has the following functions:
 xrand.split(num): split the internal rng and return new ones.
 xrand.get(): get the internal rng.
 xrand.set(rng): set the internal rng.
 """
+import time
 
 import jax.random as jrand
 
 
-_rng = jrand.PRNGKey(1946)
+_rng = jrand.PRNGKey(time.time_ns())
 
 
 def split(num=None):

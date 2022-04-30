@@ -8,26 +8,19 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import jax.random as jrand
-
+from xjax import xrand
 
 class OptimizerTest(absltest.TestCase):
     def setUp(self):
-        # A Logic Named Joe
-        params_rng, rng = jrand.split(jrand.PRNGKey(1946))
-        params_rngs = jrand.split(params_rng, 3)
-        self.params = [[jrand.normal(params_rngs[0], (8,)),
-                        jrand.normal(params_rngs[1], (4,))],
-                       jrand.normal(params_rngs[2], (2,))]
-        grads1_rng, rng = jrand.split(rng)
-        grads1_rngs = jrand.split(grads1_rng, 3)
-        self.grads1 = [[jrand.normal(grads1_rngs[0], (8,)),
-                       jrand.normal(grads1_rngs[1], (4,))],
-                      jrand.normal(grads1_rngs[2], (2,))]
-        grads2_rng, rng = jrand.split(rng)
-        grads2_rngs = jrand.split(grads2_rng, 3)
-        self.grads2 = [[jrand.normal(grads2_rngs[0], (8,)),
-                       jrand.normal(grads2_rngs[1], (4,))],
-                      jrand.normal(grads2_rngs[2], (2,))]
+        self.params = [[jrand.normal(xrand.split(), (8,)),
+                        jrand.normal(xrand.split(), (4,))],
+                       jrand.normal(xrand.split(), (2,))]
+        self.grads1 = [[jrand.normal(xrand.split(), (8,)),
+                       jrand.normal(xrand.split(), (4,))],
+                      jrand.normal(xrand.split(), (2,))]
+        self.grads2 = [[jrand.normal(xrand.split(), (8,)),
+                       jrand.normal(xrand.split(), (4,))],
+                      jrand.normal(xrand.split(), (2,))]
 
     def test_sgd(self):
         params, grads1, grads2 = self.params, self.grads1, self.grads2
@@ -63,24 +56,56 @@ class OptimizerTest(absltest.TestCase):
         jax.tree_map(test_result, self.params, self.grads1, self.grads2, params)
 
 
-class VMapTest(absltest.TestCase):
+class SegmentTest(absltest.TestCase):
     def setUp(self):
-        # A Logic Named Joe
-        params_rng, rng = jrand.split(jrand.PRNGKey(1946))
-        params_rngs = jrand.split(params_rng, 3)
-        self.params = [[jrand.normal(params_rngs[0], (8,)),
-                        jrand.normal(params_rngs[1], (4,))],
-                       jrand.normal(params_rngs[2], (2,))]
-        grads1_rng, rng = jrand.split(rng)
-        grads1_rngs = jrand.split(grads1_rng, 3)
-        self.grads1 = [[jrand.normal(grads1_rngs[0], (2, 8)),
-                       jrand.normal(grads1_rngs[1], (2, 4))],
-                      jrand.normal(grads1_rngs[2], (2, 2))]
-        grads2_rng, rng = jrand.split(rng)
-        grads2_rngs = jrand.split(grads2_rng, 3)
-        self.grads2 = [[jrand.normal(grads2_rngs[0], (4, 8)),
-                       jrand.normal(grads2_rngs[1], (4, 4))],
-                      jrand.normal(grads2_rngs[2], (4, 2))]
+        self.params = [[jrand.normal(xrand.split(), (64, 8)),
+                        jrand.normal(xrand.split(), (64, 4))],
+                       jrand.normal(xrand.split(), (64, 2))]
+        self.grads1 = [[(jrand.randint(xrand.split(), (2,), 0, 64),
+                         jrand.normal(xrand.split(), (2, 8))),
+                       (jrand.randint(xrand.split(), (2,), 0, 64),
+                        jrand.normal(xrand.split(), (2, 4)))],
+                      (jrand.randint(xrand.split(), (2,), 0, 64),
+                       jrand.normal(xrand.split(), (2, 2)))]
+        self.grads2 = [[(jrand.randint(xrand.split(), (2,), 0, 64),
+                         jrand.normal(xrand.split(), (2, 8))),
+                       (jrand.randint(xrand.split(), (2,), 0, 64),
+                        jrand.normal(xrand.split(), (2, 4)))],
+                      (jrand.randint(xrand.split(), (2,), 0, 64),
+                       jrand.normal(xrand.split(), (2, 2)))]
+
+    def test_sgd(self):
+        params, grads1, grads2 = self.params, self.grads1, self.grads2
+        update, states = xopt.SGD(params, rate=0.02, decay=0.003)
+        self.assertEqual(0, states[0])
+        params, states = update(params, grads1, states)
+        self.assertEqual(1, states[0])
+        params, states = update(params, grads2, states)
+        self.assertEqual(2, states[0])
+        def test_result(param, grad1, grad2, result):
+            index, grad_value = grad1
+            param_value = jnp.take(param, index, axis=0)
+            param = param.at[index].add(
+                -0.02 * (grad_value + 0.003 * param_value))
+            index, grad_value = grad2
+            param_value = jnp.take(param, index, axis=0)
+            param = param.at[index].add(
+                -0.02 * (grad_value + 0.003 * param_value))
+            self.assertTrue(jnp.allclose(param, result))
+        jax.tree_map(test_result, self.params, self.grads1, self.grads2, params)
+
+
+class VMapOptimizerTest(absltest.TestCase):
+    def setUp(self):
+        self.params = [[jrand.normal(xrand.split(), (8,)),
+                        jrand.normal(xrand.split(), (4,))],
+                       jrand.normal(xrand.split(), (2,))]
+        self.grads1 = [[jrand.normal(xrand.split(), (2, 8)),
+                       jrand.normal(xrand.split(), (2, 4))],
+                      jrand.normal(xrand.split(), (2, 2))]
+        self.grads2 = [[jrand.normal(xrand.split(), (4, 8)),
+                       jrand.normal(xrand.split(), (4, 4))],
+                      jrand.normal(xrand.split(), (4, 2))]
 
     def test_sgd(self):
         params, grads1, grads2 = self.params, self.grads1, self.grads2
@@ -112,6 +137,49 @@ class VMapTest(absltest.TestCase):
             param = param - 0.02 * velocity
             velocity = 0.5 * velocity + jnp.mean(grad2, axis=0) + 0.003 * param
             param = param - 0.02 * velocity
+            self.assertTrue(jnp.allclose(param, result))
+        jax.tree_map(test_result, self.params, self.grads1, self.grads2, params)
+
+
+class VMapSegmentTest(absltest.TestCase):
+    def setUp(self):
+        self.params = [[jrand.normal(xrand.split(), (64, 8)),
+                        jrand.normal(xrand.split(), (64, 4))],
+                       jrand.normal(xrand.split(), (64, 2))]
+        self.grads1 = [[(jrand.randint(xrand.split(), (2, 2), 0, 64),
+                         jrand.normal(xrand.split(), (2, 2, 8))),
+                       (jrand.randint(xrand.split(), (2, 2), 0, 64),
+                        jrand.normal(xrand.split(), (2, 2, 4)))],
+                      (jrand.randint(xrand.split(), (2, 2), 0, 64),
+                       jrand.normal(xrand.split(), (2, 2, 2)))]
+        self.grads2 = [[(jrand.randint(xrand.split(), (2, 2), 0, 64),
+                         jrand.normal(xrand.split(), (2, 2, 8))),
+                       (jrand.randint(xrand.split(), (2, 2), 0, 64),
+                        jrand.normal(xrand.split(), (2, 2, 4)))],
+                      (jrand.randint(xrand.split(), (2, 2), 0, 64),
+                       jrand.normal(xrand.split(), (2, 2, 2)))]
+
+    def test_sgd(self):
+        params, grads1, grads2 = self.params, self.grads1, self.grads2
+        update, states = xopt.vmap(xopt.SGD(params, rate=0.02, decay=0.003))
+        self.assertEqual(0, states[0])
+        params, states = update(params, grads1, states)
+        self.assertEqual(1, states[0])
+        params, states = update(params, grads2, states)
+        self.assertEqual(2, states[0])
+        def test_result(param, grad1, grad2, result):
+            index, grad_value = grad1
+            index = jnp.reshape(index, (-1,))
+            grad_value = jnp.reshape(grad_value, (-1,) + param.shape[1:]) / 2
+            param_value = jnp.take(param, index, axis=0)
+            param = param.at[index].add(
+                -0.02 * (grad_value + 0.003 * param_value))
+            index, grad_value = grad2
+            index = jnp.reshape(index, (-1,))
+            grad_value = jnp.reshape(grad_value, (-1,) + param.shape[1:]) / 2
+            param_value = jnp.take(param, index, axis=0)
+            param = param.at[index].add(
+                -0.02 * (grad_value + 0.003 * param_value))
             self.assertTrue(jnp.allclose(param, result))
         jax.tree_map(test_result, self.params, self.grads1, self.grads2, params)
 

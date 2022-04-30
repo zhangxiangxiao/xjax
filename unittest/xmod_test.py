@@ -1,6 +1,4 @@
-"""
-Unittests for xmod.
-"""
+"""Unittests for xmod."""
 
 from xjax import xmod
 
@@ -14,7 +12,6 @@ import jax.random as jrand
 
 class ModelTest(absltest.TestCase):
     def setUp(self):
-        rng1, rng2 = xrand.split(2)
         # net is a 2-layer MLP.
         self.net = xnn.Sequential(
             xnn.Linear(8, 4), xnn.ReLU(), xnn.Linear(4, 2))
@@ -23,8 +20,8 @@ class ModelTest(absltest.TestCase):
             xnn.Subtract(), xnn.Square(), xnn.Sum())
         self.model = xmod.Model(self.net, self.loss)
         # inputs = [net_inputs, net_targets].
-        self.inputs = [jrand.normal(rng1, shape=(8,)),
-                       jrand.normal(rng2, shape=(2,))]
+        self.inputs = [jrand.normal(xrand.split(), shape=(8,)),
+                       jrand.normal(xrand.split(), shape=(2,))]
 
     def test_forward(self):
         forward, _, params, states = self.model
@@ -60,9 +57,8 @@ class ModelTest(absltest.TestCase):
 
     def test_vmap(self):
         forward, backward, params, states = xmod.vmap(self.model, 2)
-        rng1, rng2 = xrand.split(2)
-        inputs = [jrand.normal(rng1, shape=(2, 8)),
-                  jrand.normal(rng2, shape=(2, 2))]
+        inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
+                  jrand.normal(xrand.split(), shape=(2, 2))]
         net_outputs, loss_outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 2), net_outputs.shape)
         self.assertEqual((2,), loss_outputs.shape)
@@ -74,7 +70,6 @@ class ModelTest(absltest.TestCase):
 
 class GANTest(absltest.TestCase):
     def setUp(self):
-        rng = xrand.split()
         # Generator is a 2-layer MLP.
         self.gen = xnn.Sequential(
             xnn.Normal(shape=(2,)),
@@ -90,7 +85,7 @@ class GANTest(absltest.TestCase):
         # Build the GAN model
         self.model = xmod.GAN(
             self.gen, self.disc, self.gen_loss, self.disc_loss)
-        self.inputs = jrand.normal(rng, shape=(8,))
+        self.inputs = jrand.normal(xrand.split(), shape=(8,))
 
     def test_forward(self):
         forward, _, params, states = self.model
@@ -149,8 +144,7 @@ class GANTest(absltest.TestCase):
 
     def test_vmap(self):
         forward, backward, params, states = xmod.vmap(self.model, 2)
-        inputs_rng = xrand.split()
-        inputs = jrand.normal(inputs_rng, shape=(2,8))
+        inputs = jrand.normal(xrand.split(), shape=(2,8))
         ([gen_outputs, [real_outputs, fake_outputs]],
          [gen_loss_outputs, disc_loss_outputs], states) = forward(
              params, inputs, states)
@@ -159,6 +153,70 @@ class GANTest(absltest.TestCase):
         self.assertEqual((2, 1), fake_outputs.shape)
         self.assertEqual((2,), gen_loss_outputs.shape)
         self.assertEqual((2,), disc_loss_outputs.shape)
+
+
+class ParallelEmbedTest(absltest.TestCase):
+    def setUp(self):
+        self.embed0 = xnn.Embed(64, 8)
+        self.embed1 = xnn.Embed(64, 8)
+        self.net = xnn.Sequential(
+            xnn.Parallel(xnn.Mean(axis=0), xnn.Mean(axis=0)),
+            xnn.Add(), xnn.Mean())
+        self.loss = xnn.Multiply()
+        self.model = xmod.ParallelEmbed(
+            self.embed0, self.embed1, self.net, self.loss)
+
+    def test_forward(self):
+        forward, _, params, states = self.model
+        inputs = [[jrand.randint(xrand.split(), (4,), 0, 64),
+                   jrand.randint(xrand.split(), (2,), 0, 64)], 1]
+        net_outputs, loss_outputs, states = forward(params, inputs, states)
+        embed0_forward, embed0_params, embed0_states = self.embed0
+        embed0_outputs, embed0_states = embed0_forward(
+            embed0_params, inputs[0][0], embed0_states)
+        embed1_forward, embed1_params, embed1_states = self.embed1
+        embed1_outputs, embed1_states = embed1_forward(
+            embed1_params, inputs[0][1], embed1_states)
+        net_forward, net_params, net_states = self.net
+        ref_net_outputs, net_states = net_forward(
+            net_params, [embed0_outputs, embed1_outputs], net_states)
+        loss_forward, loss_params, loss_states = self.loss
+        ref_loss_outputs, loss_states = loss_forward(
+            loss_params, [ref_net_outputs, inputs[1]], loss_states)
+        self.assertTrue(jnp.allclose(ref_net_outputs, net_outputs))
+        self.assertTrue(jnp.allclose(ref_loss_outputs, loss_outputs))
+
+    def test_backward(self):
+        forward, backward, params, states = self.model
+        inputs = [[jrand.randint(xrand.split(), (4,), 0, 64),
+                   jrand.randint(xrand.split(), (2,), 0, 64)], 1]
+        grads, net_outputs, loss_outputs, _ = backward(
+            params, inputs, states)
+        ref_net_outputs, ref_loss_outputs, _ = forward(
+            params, inputs, states)
+        self.assertTrue(jnp.allclose(ref_net_outputs, net_outputs))
+        self.assertTrue(jnp.allclose(ref_loss_outputs, loss_outputs))
+        net_forward, net_params, net_states = self.net
+        loss_forward, loss_params, loss_states = self.loss
+        def ref_forward(embed_outputs):
+            _net_states, _loss_states = net_states, loss_states
+            _net_outputs, _net_states = net_forward(
+                net_params, embed_outputs, _net_states)
+            _loss_outputs, _loss_states = loss_forward(
+                loss_params, [_net_outputs, inputs[1]], _loss_states)
+            return _loss_outputs
+        embed0_forward, embed0_params, embed0_states = self.embed0
+        embed0_outputs, embed0_states = embed0_forward(
+            embed0_params, inputs[0][0], embed0_states)
+        embed1_forward, embed1_params, embed1_states = self.embed1
+        embed1_outputs, embed1_states = embed1_forward(
+            embed1_params, inputs[0][1], embed1_states)
+        ref_backward = jax.grad(ref_forward)
+        ref_grads = ref_backward([embed0_outputs, embed1_outputs])
+        def assert_true(ref, ind, grad):
+            self.assertTrue(jnp.allclose(ind, grad[0]))
+            self.assertTrue(jnp.allclose(ref, grad[1]))
+        jax.tree_map(assert_true, ref_grads, inputs[0], grads[0])
 
 
 if __name__ == '__main__':

@@ -76,9 +76,9 @@ def Model(net, loss):
       loss: an xjax.xnn module that is used as a loss.
 
     Returns:
-      forward: the forward function that returns outputs and states. The outputs
-        is a tuple of net outputs and loss outputs.
-      backward: the backward function.
+      forward: the forward function that returns net_outputs, loss_outputs, and
+        states.
+      backward: the backward function that returns grads and forward returns.
       initial_params: the initial parameters from net.
       initial_states: the initial states.
     """
@@ -122,9 +122,9 @@ def GAN(gen, disc, gen_loss, disc_loss):
       disc_loss: the discriminator loss.
 
     Returns:
-      forward: the forward function that returns outputs and states. The outputs
-        is a tuple of net outputs and loss outputs.
-      backward: the backward function.
+      forward: the forward function that returns net_outputs, loss_outputs, and
+        states.
+      backward: the backward function that returns grads and forward returns.
       initial_params: the initial parameters from net.
       initial_states: the initial states.
     """
@@ -184,6 +184,70 @@ def GAN(gen, disc, gen_loss, disc_loss):
         grads_disc_params = map_add(
             grads_disc_params_real, grads_disc_params_fake)
         grads = (grads_gen_params, grads_disc_params)
+        return grads, net_outputs, loss_outputs, states
+    return ModelTuple(forward, backward, initial_params, initial_states)
+
+
+def ParallelEmbed(*args):
+    """Parallel embed model that supports segment gradients.
+
+    Args:
+      embed0, embed1, ....: a sequence of embedding modules.
+      net: the network module that accepts embedded results.
+      loss: the loss module.
+
+      forward: the forward function that returns net_outputs, loss_outputs, and
+        states.
+      backward: the backward function that returns grads and forward returns.
+        The grads is a tuple (embed_grads, net_grads) in which embed_grads can
+        be used with segment optimizers, and net_grads is dense.
+      initial_params: the initial parameters which is (embed_params, net_params)
+      initial_states: the initial states.
+    """
+    embed = xnn.Parallel(*args[0:-2])
+    net = args[-2]
+    loss = args[-1]
+    embed_forward, embed_params, embed_initial_states = embed
+    net_forward, net_params, net_initial_states = net
+    loss_forward, loss_params, loss_initial_states = loss
+    initial_params = (embed_params, net_params)
+    initial_states = (embed_initial_states, net_initial_states,
+                      loss_initial_states)
+    initial_states = (embed_initial_states, net_initial_states,
+                      loss_initial_states)
+    def forward(params, inputs, states):
+        embed_params, net_params = params
+        embed_inputs, net_targets = inputs
+        embed_states, net_states, loss_states = states
+        embed_outputs, embed_states = embed_forward(
+            embed_params, embed_inputs, embed_states)
+        net_outputs, net_states = net_forward(
+            net_params, embed_outputs, net_states)
+        loss_inputs = [net_outputs, net_targets]
+        loss_outputs, loss_states = loss_forward(
+            loss_params, loss_inputs, loss_states)
+        states = (embed_states, net_states, loss_states)
+        return net_outputs, loss_outputs, states
+    def backward(params, inputs, states):
+        embed_params, net_params = params
+        embed_inputs, net_targets = inputs
+        embed_states, net_states, loss_states = states
+        # Forward propagate and build backward graph.
+        embed_outputs, embed_states = embed_forward(
+            embed_params, embed_inputs, embed_states)
+        net_vjpf, net_outputs, net_states = vjp_full(
+            net_forward, net_params, embed_outputs, net_states)
+        loss_inputs = [net_outputs, net_targets]
+        loss_vjpf, loss_outputs, loss_states = vjp_inputs(
+            loss_forward, loss_params, loss_inputs, loss_states)
+        states = (embed_states, net_states, loss_states)
+        # Backward propagate.
+        grads_loss_outputs = map_ones_like(loss_outputs)
+        grads_net_outputs, _ = loss_vjpf(grads_loss_outputs)
+        grads_net_params, grads_embed_outputs = net_vjpf(grads_net_outputs)
+        # Build segment gradients for embed modules.
+        grads_embed_params = [*zip(embed_inputs, grads_embed_outputs)]
+        grads = (grads_embed_params, grads_net_params)
         return grads, net_outputs, loss_outputs, states
     return ModelTuple(forward, backward, initial_params, initial_states)
 

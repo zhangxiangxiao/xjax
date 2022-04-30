@@ -54,12 +54,11 @@ def Linear(in_dim, out_dim, w_init=jinit.glorot_normal(), b_init=jinit.normal(),
     return ModuleTuple(forward, initial_params, None)
 
 
-def Embed(embed_size, embed_dim, embed_init=jinit.normal(), rng=None,
-          *args, **kwargs):
+def Embed(embed_size, embed_dim, embed_init=jinit.normal(), rng=None):
     rng = rng if rng is not None else xrand.split()
     initial_params = embed_init(rng, (embed_size, embed_dim))
     def forward(params, inputs, states):
-        return jnp.take(params, inputs, *args, axis=0, **kwargs), states
+        return jnp.take(params, inputs, axis=0), states
     return ModuleTuple(forward, initial_params, None)
 
 
