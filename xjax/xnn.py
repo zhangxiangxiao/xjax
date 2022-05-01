@@ -390,10 +390,12 @@ FullLike = partial(SingleInput, jnp.full_like)
 Transpose = partial(SingleInput, jnp.transpose)
 Reshape = partial(SingleInput, jnp.reshape)
 Repeat = partial(SingleInput, jnp.repeat)
+
 def mul_const(inputs, const):
     """Multiply by a constant."""
     return inputs * const
 MulConst = partial(SingleInput, mul_const)
+
 def add_const(inputs, const):
     """Add a constant."""
     return inputs + const
@@ -421,6 +423,10 @@ LogAddExp = partial(MultiInput, jnp.logaddexp)
 MatMul = partial(MultiInput, jnp.matmul)
 Dot = partial(MultiInput, jnp.dot)
 
+def logcosh(x, y):
+    # log(cosh(z)) = log((exp(z)+exp(-z))/2) = log(exp(z)+exp(-z))-log(2)
+    return jnp.logaddexp(x - y, y - x) - math.log(2)
+LogCosh = partial(MultiInput, logcosh)
 
 def Random(func, rng=None, *args, **kwargs):
     """Layer that generate random numbers."""

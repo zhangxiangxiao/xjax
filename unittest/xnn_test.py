@@ -584,7 +584,7 @@ class AddConstTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(reference, outputs))
 
 
-class ArithmeticTest(absltest.TestCase):
+class ArithmeticMultiInputTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
         inputs1 = jrand.normal(xrand.split(), shape=(8,))
         inputs2 = jrand.normal(xrand.split(), shape=(8,))
@@ -614,6 +614,9 @@ class ArithmeticTest(absltest.TestCase):
 
     def test_logaddexp(self):
         self.template(xnn.LogAddExp, jnp.logaddexp)
+
+    def test_logcosh(self):
+        self.template(xnn.LogCosh, xnn.logcosh)
 
 
 class MatMulTest(absltest.TestCase):
