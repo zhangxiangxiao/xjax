@@ -138,3 +138,13 @@ def vectorize(optimizer):
 
 vmap = vectorize
 # pmap = vectorize
+
+def InverseTimeSchedule(a=1, b=0, decay=1):
+    """Returns a schedule function that computes
+    ratio = 1 / (1 + decay * step)
+    result = ratio * a + (1 - ratio) * b
+    """
+    def schedule(step):
+        ratio = 1 / (1 + decay * step)
+        return ratio * a + (1 - ratio) * b
+    return schedule

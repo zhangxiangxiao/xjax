@@ -210,5 +210,14 @@ class VMapSegmentTest(absltest.TestCase):
         jax.tree_map(test_result, self.params, self.grads1, self.grads2, params)
 
 
+class ScheduleTest(absltest.TestCase):
+    def test_inverse_time_schedule(self):
+        schedule = xopt.InverseTimeSchedule(0.1, 0.001, 0.01)
+        rate = schedule(67)
+        ratio = 1 / (1 + 0.01 * 67)
+        ref_rate = ratio * 0.1 + (1 - ratio) * 0.001
+        self.assertAlmostEqual(ref_rate, rate)
+
+
 if __name__ == '__main__':
     absltest.main()
