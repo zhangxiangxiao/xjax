@@ -325,6 +325,14 @@ def Flatten():
     return ModuleTuple(forward, None, None)
 
 
+def Pack():
+    """Pack inputs by returnining [inputs]."""
+    def forward(params, inputs, states):
+        outputs = [inputs]
+        return outputs, states
+    return ModuleTuple(forward, None, None)
+
+
 def Unpack():
     """Unpack inputs by assuming it has only one member: `outputs, = inputs.`"""
     def forward(params, inputs, states):
@@ -379,18 +387,22 @@ AddConst = partial(SingleInput, add_const)
 
 
 def MultiInput(func, *args, **kwargs):
-    """Layer that applies func with inputs unpacked.
-    Used for modules that accept multiple inputs and do not have params or
-    states. Hyper-parameters are stored in kwargs as a Python3 function
-    closure."""
+    """
+    Layer that applies func with inputs unpacked. Used for modules that accept
+    multiple inputs and do not have params or states. Hyper-parameters are
+    stored in kwargs as a function closure.
+    """
     def forward(params, inputs, states):
-        return func(*inputs, *args, **kwargs), states
+        def wrapped_func(*inputs):
+            return func(*inputs, *args, **kwargs)
+        return jax.tree_map(wrapped_func, *inputs), states
     return ModuleTuple(forward, None, None)
 # Arithmetic functions
 Add = partial(MultiInput, jnp.add)
 Subtract = partial(MultiInput, jnp.subtract)
 Multiply = partial(MultiInput, jnp.multiply)
 Divide = partial(MultiInput, jnp.divide)
+LogAddExp = partial(MultiInput, jnp.logaddexp)
 # Linear algebra functions
 MatMul = partial(MultiInput, jnp.matmul)
 Dot = partial(MultiInput, jnp.dot)

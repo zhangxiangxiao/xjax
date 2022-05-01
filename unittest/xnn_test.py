@@ -501,6 +501,23 @@ class FlattenTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(inputs[2], outputs[3]))
 
 
+class PackTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.Pack()
+
+    def test_forward(self):
+        inputs = jrand.normal(xrand.split(), shape=(8,))
+        forward, params, states = self.module
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs, outputs[0]))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        inputs = jrand.normal(xrand.split(), shape=(2, 8))
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs, outputs[0]))
+
+
 class UnpackTest(absltest.TestCase):
     def setUp(self):
         self.module = xnn.Unpack()
@@ -545,6 +562,9 @@ class ArithmeticTest(absltest.TestCase):
 
     def test_divide(self):
         self.template(xnn.Divide, jnp.divide)
+
+    def test_logaddexp(self):
+        self.template(xnn.LogAddExp, jnp.logaddexp)
 
 
 class MatMulTest(absltest.TestCase):
