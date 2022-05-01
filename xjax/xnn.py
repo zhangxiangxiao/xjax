@@ -22,23 +22,37 @@ postprocessing after.
 """
 
 from __future__ import absolute_import
-
-from functools import partial
 from collections import namedtuple
+from functools import partial, wraps
 import math
 
 import jax
-import jax.numpy as jnp
+import jax.image as jimage
+import jax.lax as jlax
 import jax.nn as jnn
 import jax.nn.initializers as jinit
+import jax.numpy as jnp
 import jax.random as jrand
 import jax.tree_util as jtree
-import jax.lax as jlax
-import jax.image as jimage
 from xjax import xrand
 
 
 ModuleTuple = namedtuple('Module', ['forward', 'params', 'states'])
+
+
+def tree_forward(forward):
+    """Make forward function work with pytrees."""
+    @wraps(forward)
+    def wrapped_forward(params, inputs, states):
+        flat_inputs, treedef = jtree.tree_flatten(inputs)
+        flat_outputs = []
+        for leaf_inputs in flat_inputs:
+            leaf_outputs, states = forward(params, leaf_inputs, states)
+            flat_outputs.append(leaf_outputs)
+        outputs = treedef.unflatten(flat_outputs)
+        return outputs, states
+    return wrapped_forward
+
 
 
 def Linear(in_dim, out_dim, w_init=jinit.glorot_normal(), b_init=jinit.normal(),
@@ -48,6 +62,7 @@ def Linear(in_dim, out_dim, w_init=jinit.glorot_normal(), b_init=jinit.normal(),
     initial_w = w_init(w_rng, (in_dim, out_dim))
     initial_b = b_init(b_rng, (out_dim,))
     initial_params = (initial_w, initial_b)
+    @tree_forward
     def forward(params, inputs, states):
         w, b = params
         return jnp.dot(inputs, w) + b, states
@@ -57,6 +72,7 @@ def Linear(in_dim, out_dim, w_init=jinit.glorot_normal(), b_init=jinit.normal(),
 def Embed(embed_size, embed_dim, embed_init=jinit.normal(), rng=None):
     rng = rng if rng is not None else xrand.split()
     initial_params = embed_init(rng, (embed_size, embed_dim))
+    @tree_forward
     def forward(params, inputs, states):
         return jnp.take(params, inputs, axis=0), states
     return ModuleTuple(forward, initial_params, None)
@@ -64,6 +80,7 @@ def Embed(embed_size, embed_dim, embed_init=jinit.normal(), rng=None):
 
 def Dropout(p=0.5, mode='train', rng=None):
     rng = rng if rng is not None else xrand.split()
+    @tree_forward
     def forward(params, inputs, states):
         if mode == 'train' and p != 0:
             new_rng, rng = jrand.split(states['rng'])
@@ -106,6 +123,7 @@ def Conv(in_dim, out_dim, kernel, stride=None, dilation=None,
     initial_w = w_init(w_rng, (out_dim, in_dim) + kernel)
     initial_b = b_init(b_rng, (out_dim,) + (1,) * len(kernel))
     initial_params = (initial_w, initial_b)
+    @tree_forward
     def forward(params, inputs, states):
         w, b = params
         batch_mode = (inputs.ndim >= w.ndim)
@@ -160,6 +178,7 @@ def Deconv(in_dim, out_dim, kernel, stride=None, dilation=None, padding='SAME',
     initial_w = w_init(w_rng, (out_dim, in_dim) + kernel)
     initial_b = b_init(b_rng, (out_dim,) + (1,) * len(kernel))
     initial_params = (initial_w, initial_b)
+    @tree_forward
     def forward(params, inputs, states):
         w, b = params
         batch_mode = (inputs.ndim >= w.ndim)
@@ -199,6 +218,7 @@ def MaxPool(kernel, stride, dilation, padding='SAME', *args, **kwargs):
     """
     stride = stride if stride is not None else kernel
     dilation = dilation if dilation is not None else (1,) * len(kernel)
+    @tree_forward
     def forward(params, inputs, states):
         extra_ndim = inputs.ndim - len(kernel)
         _kernel = (1,) * extra_ndim + kernel
@@ -230,6 +250,7 @@ def AvgPool(kernel, stride, dilation, padding='SAME', *args, **kwargs):
     """
     stride = stride if stride is not None else kernel
     dilation = dilation if dilation is not None else (1,) * len(kernel)
+    @tree_forward
     def forward(params, inputs, states):
         extra_ndim = inputs.ndim - len(kernel)
         _kernel = (1,) * extra_ndim + kernel
@@ -255,6 +276,7 @@ def Resize(factor, method='nearest', *args, **kwargs):
       params: initial parameteers.
       states: initial states.
     """
+    @tree_forward
     def forward(params, inputs, states):
         shape = (math.floor(s * f) for s, f in zip(inputs.shape, factor))
         outputs = jimage.resize(inputs, shape, method, *args, **kwargs)
@@ -279,10 +301,43 @@ def FlattenUpTo(tree):
     return ModuleTuple(forward, None, None)
 
 
+def Identity():
+    def forward(params, inputs, states):
+        return inputs, states
+    return ModuleTuple(forward, None, None)
+
+
+def Group(ind):
+    """Group inputs into a tree structure according to ind.
+    Example: Group([1, [0, 2]]) will return [inputs[1], [inputs[0], inputs[2]]].
+    """
+    def forward(params, inputs, states):
+        outputs = jax.tree_map(lambda x: inputs[x], ind)
+        return outputs, states
+    return ModuleTuple(forward, None, None)
+
+
+def Flatten():
+    """Flatten inputs into a list."""
+    def forward(params, inputs, states):
+        outputs, _ = jtree.tree_flatten(inputs)
+        return outputs, states
+    return ModuleTuple(forward, None, None)
+
+
+def Unpack():
+    """Unpack inputs by assuming it has only one member: `outputs, = inputs.`"""
+    def forward(params, inputs, states):
+        outputs, = inputs
+        return outputs, states
+    return ModuleTuple(forward, None, None)
+
+
 def SingleInput(func, *args, **kwargs):
     """Layer that feed func with inputs.
     Used for modules that do not have params and states. Hyper-parameters are
     stored in kwargs as a Python3 function closure."""
+    @tree_forward
     def forward(params, inputs, states):
         return func(inputs, *args, **kwargs), states
     return ModuleTuple(forward, None, None)
@@ -313,47 +368,14 @@ Logsumexp = partial(SingleInput, jnn.logsumexp)
 Transpose = partial(SingleInput, jnp.transpose)
 Reshape = partial(SingleInput, jnp.reshape)
 Repeat = partial(SingleInput, jnp.repeat)
-
-
-def identity(inputs):
-    return inputs
-Identity = partial(SingleInput, identity)
-
-
 def mul_const(inputs, const):
     """Multiply by a constant."""
     return inputs * const
 MulConst = partial(SingleInput, mul_const)
-
-
 def add_const(inputs, const):
     """Add a constant."""
     return inputs + const
 AddConst = partial(SingleInput, add_const)
-
-
-def group(inputs, ind):
-    """Group inputs into a tree structure according to ind.
-    Example: group(inputs, [1, [0, 2]]) will return
-    [inputs[1], [inputs[0], inputs[2]]].
-    """
-    outputs = jax.tree_map(lambda x: inputs[x], ind)
-    return outputs
-Group = partial(SingleInput, group)
-
-
-def flatten(inputs):
-    """Flatten inputs into a list."""
-    outputs, _ = jtree.tree_flatten(inputs)
-    return outputs
-Flatten = partial(SingleInput, flatten)
-
-
-def unpack(inputs):
-    """Unpack inputs by assuming it has only one member: `outputs, = inputs.`"""
-    outputs, = inputs
-    return outputs
-Unpack = partial(SingleInput, unpack)
 
 
 def MultiInput(func, *args, **kwargs):

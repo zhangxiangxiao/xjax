@@ -11,13 +11,13 @@ states[0] is always the current step count.
 """
 
 from __future__ import absolute_import
-from functools import wraps, partial
 from collections import namedtuple
+from functools import partial, wraps
 import math
 
 import jax
-import jax.tree_util as jtree
 import jax.numpy as jnp
+import jax.tree_util as jtree
 
 
 OptimizerTuple = namedtuple('OptimizerTuple', ['update', 'states'])
