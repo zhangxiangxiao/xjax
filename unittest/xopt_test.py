@@ -94,6 +94,32 @@ class SegmentTest(absltest.TestCase):
             self.assertTrue(jnp.allclose(param, result))
         jax.tree_map(test_result, self.params, self.grads1, self.grads2, params)
 
+    def test_momentum(self):
+        params, grads1, grads2 = self.params, self.grads1, self.grads2
+        update, states = xopt.Momentum(
+            params, rate=0.02, coeff=0.5, decay=0.003)
+        self.assertEqual(0, states[0])
+        params, states = update(params, grads1, states)
+        self.assertEqual(1, states[0])
+        params, states = update(params, grads2, states)
+        self.assertEqual(2, states[0])
+        def test_result(param, grad1, grad2, result):
+            velocity = jnp.zeros_like(param)
+            index, grad_value = grad1
+            param_value = jnp.take(param, index, axis=0)
+            velocity_value = jnp.take(param, index, axis=0)
+            velocity_value = 0.5 * velocity_value + grad_value + 0.003 * param
+            velocity = velocity.at[index].set(velocity_vale)
+            param = param.at[index].add(-0.02 * velocity_value)
+            index, grad_value = grad2
+            param_value = jnp.take(param, index, axis=0)
+            velocity_value = jnp.take(param, index, axis=0)
+            velocity_value = 0.5 * velocity_value + grad_value + 0.003 * param
+            velocity = velocity.at[index].set(velocity_vale)
+            param = param.at[index].add(-0.02 * velocity_value)
+            self.assertTrue(jnp.allclose(param, result))
+        jax.tree_map(test_result, self.params, self.grads1, self.grads2, params)
+
 
 class VMapOptimizerTest(absltest.TestCase):
     def setUp(self):

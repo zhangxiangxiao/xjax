@@ -72,6 +72,7 @@ def SGD(initial_params, rate=0.1, decay=0):
             index, grads_value = grads
             params_value = jnp.take(params, index, axis=0)
             grads_value = grads_value + decay(step) * params_value
+            # Caveat: weight decay updates not in sequence on repeated indices.
             new_params = params.at[index].add(-rate(step) * grads_value)
         return new_params, states
     @tree_init
@@ -88,9 +89,22 @@ def Momentum(initial_params, rate=0.1, coeff=0.9, decay=0):
     decay = callable_schedule(decay)
     @tree_update
     def update(step, params, grads, states):
-        grads = grads + decay(step) * params
-        new_states = coeff(step) * states + grads
-        new_params = params - rate(step) * new_states
+        if isinstance(grads, jnp.ndarray):
+            # Dense gradients.
+            grads = grads + decay(step) * params
+            new_states = coeff(step) * states + grads
+            new_params = params - rate(step) * new_states
+        else:
+            # Segment gradients.
+            index, grads_value = grads
+            params_value = jnp.take(params, index, axis=0)
+            states_value = jnp.take(states, index, axis=0)
+            grads_value = grads_value + decay(step) * params_value
+            new_states_value = coeff(step) * states_value + grads_value
+            # Caveat: overwriten velocity on repeated indices.
+            new_states = states.at[index].set(new_states_value)
+            # Caveat: weight decay updates not in sequence on repeated indices.
+            new_params = params.at[index].add(-rate(step) * new_states_value)
         return new_params, new_states
     @tree_init
     def init(initial_params):
