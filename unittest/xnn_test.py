@@ -227,8 +227,125 @@ class FlattenUpToTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(outputs[3][1], inputs[2][1][1]))
 
 
+class GroupTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.Group(ind=[[0,1,2],[4,3,2]])
 
-class TransferTest(absltest.TestCase):
+    def test_forward(self):
+        inputs = [jrand.normal(xrand.split(), shape=(8,)) for i in range(5)]
+        forward, params, states = self.module
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual(2, len(outputs))
+        self.assertEqual(3, len(outputs[0]))
+        self.assertEqual(3, len(outputs[1]))
+        self.assertTrue(jnp.array_equal(inputs[0], outputs[0][0]))
+        self.assertTrue(jnp.array_equal(inputs[1], outputs[0][1]))
+        self.assertTrue(jnp.array_equal(inputs[2], outputs[0][2]))
+        self.assertTrue(jnp.array_equal(inputs[4], outputs[1][0]))
+        self.assertTrue(jnp.array_equal(inputs[3], outputs[1][1]))
+        self.assertTrue(jnp.array_equal(inputs[2], outputs[1][2]))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        inputs = [jrand.normal(xrand.split(), shape=(2, 8)) for i in range(5)]
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual(2, len(outputs))
+        self.assertEqual(3, len(outputs[0]))
+        self.assertEqual(3, len(outputs[1]))
+        self.assertTrue(jnp.array_equal(inputs[0], outputs[0][0]))
+        self.assertTrue(jnp.array_equal(inputs[1], outputs[0][1]))
+        self.assertTrue(jnp.array_equal(inputs[2], outputs[0][2]))
+        self.assertTrue(jnp.array_equal(inputs[4], outputs[1][0]))
+        self.assertTrue(jnp.array_equal(inputs[3], outputs[1][1]))
+        self.assertTrue(jnp.array_equal(inputs[2], outputs[1][2]))
+
+
+class FlattenTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.Flatten()
+
+    def test_forward(self):
+        inputs = [jrand.normal(xrand.split(), shape=(8,)) for i in range(3)]
+        forward, params, states = self.module
+        outputs, states = forward(
+            params, [[inputs[0], inputs[1]],[inputs[1], inputs[2]]], states)
+        self.assertEqual(4, len(outputs))
+        self.assertTrue(jnp.array_equal(inputs[0], outputs[0]))
+        self.assertTrue(jnp.array_equal(inputs[1], outputs[1]))
+        self.assertTrue(jnp.array_equal(inputs[1], outputs[2]))
+        self.assertTrue(jnp.array_equal(inputs[2], outputs[3]))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        inputs = [jrand.normal(xrand.split(), shape=(2, 8)) for i in range(3)]
+        outputs, states = forward(
+            params, [[inputs[0], inputs[1]],[inputs[1], inputs[2]]], states)
+        self.assertEqual(4, len(outputs))
+        self.assertTrue(jnp.array_equal(inputs[0], outputs[0]))
+        self.assertTrue(jnp.array_equal(inputs[1], outputs[1]))
+        self.assertTrue(jnp.array_equal(inputs[1], outputs[2]))
+        self.assertTrue(jnp.array_equal(inputs[2], outputs[3]))
+
+
+class PackTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.Pack()
+
+    def test_forward(self):
+        inputs = jrand.normal(xrand.split(), shape=(8,))
+        forward, params, states = self.module
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs, outputs[0]))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        inputs = jrand.normal(xrand.split(), shape=(2, 8))
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs, outputs[0]))
+
+
+class UnpackTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.Unpack()
+
+    def test_forward(self):
+        inputs = [jrand.normal(xrand.split(), shape=(8,))]
+        forward, params, states = self.module
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs[0], outputs))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        inputs = [jrand.normal(xrand.split(), shape=(2, 8))]
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs[0], outputs))
+
+
+class ConstructionZeroInputTest(absltest.TestCase):
+    def template(self, module, func, *args, **kwargs):
+        self.module = module((8,), *args, **kwargs)
+        forward, params, states = self.module
+        outputs, states = forward(params, None, states)
+        ref_outputs = func((8,), *args, **kwargs)
+        self.assertTrue(jnp.allclose(ref_outputs, outputs))
+
+        forward_v, params_v, states_v = xnn.vmap(module(
+            (8,), *args, **kwargs), 2)
+        inputs = jrand.normal(xrand.split(), (2, 8))
+        outputs, states = forward_v(params_v, inputs, states_v)
+        self.assertEqual((2, 8), outputs.shape)
+
+    def test_zeros(self):
+        return self.template(xnn.Zeros, jnp.zeros)
+
+    def test_ones(self):
+        return self.template(xnn.Ones, jnp.ones)
+
+    def test_full(self):
+        return self.template(xnn.Full, jnp.full, 2)
+
+
+class TransferSingleInputTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
         self.module = module(*args, **kwargs)
 
@@ -278,7 +395,7 @@ class TransferTest(absltest.TestCase):
         return self.template(xnn.Standardize, jnn.standardize)
 
 
-class ReductionTest(absltest.TestCase):
+class ReductionSingleInputTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
         self.module = module(axis=-1, *args, **kwargs)
 
@@ -323,6 +440,32 @@ class ReductionTest(absltest.TestCase):
 
     def test_logsumexp(self):
         return self.template(xnn.Logsumexp, jnn.logsumexp)
+
+
+class ConstructionSingleInputTest(absltest.TestCase):
+    def template(self, module, func, *args, **kwargs):
+        self.module = module(*args, **kwargs)
+
+        forward, params, states = self.module
+        inputs = jrand.normal(xrand.split(), shape=(8,))
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((8,), outputs.shape)
+        reference = func(inputs, *args, **kwargs)
+        self.assertTrue(jnp.array_equal(reference, outputs))
+
+        forward_v, params_v, states_v = xnn.vmap(self.module, 2)
+        inputs_v = jrand.normal(xrand.split(), shape=(2, 8))
+        outputs_v, states_v = forward_v(params_v, inputs_v, states_v)
+        self.assertEqual((2, 8), outputs_v.shape)
+
+    def test_zeros_like(self):
+        return self.template(xnn.ZerosLike, jnp.zeros_like)
+
+    def test_ones_like(self):
+        return self.template(xnn.OnesLike, jnp.ones_like)
+
+    def test_full_like(self):
+        return self.template(xnn.FullLike, jnp.full_like, fill_value=2)
 
 
 class TransposeTest(absltest.TestCase):
@@ -439,100 +582,6 @@ class AddConstTest(absltest.TestCase):
         self.assertEqual((2, 8, 4), outputs.shape)
         reference = inputs + 4.7
         self.assertTrue(jnp.array_equal(reference, outputs))
-
-
-class GroupTest(absltest.TestCase):
-    def setUp(self):
-        self.module = xnn.Group(ind=[[0,1,2],[4,3,2]])
-
-    def test_forward(self):
-        inputs = [jrand.normal(xrand.split(), shape=(8,)) for i in range(5)]
-        forward, params, states = self.module
-        outputs, states = forward(params, inputs, states)
-        self.assertEqual(2, len(outputs))
-        self.assertEqual(3, len(outputs[0]))
-        self.assertEqual(3, len(outputs[1]))
-        self.assertTrue(jnp.array_equal(inputs[0], outputs[0][0]))
-        self.assertTrue(jnp.array_equal(inputs[1], outputs[0][1]))
-        self.assertTrue(jnp.array_equal(inputs[2], outputs[0][2]))
-        self.assertTrue(jnp.array_equal(inputs[4], outputs[1][0]))
-        self.assertTrue(jnp.array_equal(inputs[3], outputs[1][1]))
-        self.assertTrue(jnp.array_equal(inputs[2], outputs[1][2]))
-
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module, 2)
-        inputs = [jrand.normal(xrand.split(), shape=(2, 8)) for i in range(5)]
-        outputs, states = forward(params, inputs, states)
-        self.assertEqual(2, len(outputs))
-        self.assertEqual(3, len(outputs[0]))
-        self.assertEqual(3, len(outputs[1]))
-        self.assertTrue(jnp.array_equal(inputs[0], outputs[0][0]))
-        self.assertTrue(jnp.array_equal(inputs[1], outputs[0][1]))
-        self.assertTrue(jnp.array_equal(inputs[2], outputs[0][2]))
-        self.assertTrue(jnp.array_equal(inputs[4], outputs[1][0]))
-        self.assertTrue(jnp.array_equal(inputs[3], outputs[1][1]))
-        self.assertTrue(jnp.array_equal(inputs[2], outputs[1][2]))
-
-
-class FlattenTest(absltest.TestCase):
-    def setUp(self):
-        self.module = xnn.Flatten()
-        
-    def test_forward(self):
-        inputs = [jrand.normal(xrand.split(), shape=(8,)) for i in range(3)]
-        forward, params, states = self.module
-        outputs, states = forward(
-            params, [[inputs[0], inputs[1]],[inputs[1], inputs[2]]], states)
-        self.assertEqual(4, len(outputs))
-        self.assertTrue(jnp.array_equal(inputs[0], outputs[0]))
-        self.assertTrue(jnp.array_equal(inputs[1], outputs[1]))
-        self.assertTrue(jnp.array_equal(inputs[1], outputs[2]))
-        self.assertTrue(jnp.array_equal(inputs[2], outputs[3]))
-
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module, 2)
-        inputs = [jrand.normal(xrand.split(), shape=(2, 8)) for i in range(3)]
-        outputs, states = forward(
-            params, [[inputs[0], inputs[1]],[inputs[1], inputs[2]]], states)
-        self.assertEqual(4, len(outputs))
-        self.assertTrue(jnp.array_equal(inputs[0], outputs[0]))
-        self.assertTrue(jnp.array_equal(inputs[1], outputs[1]))
-        self.assertTrue(jnp.array_equal(inputs[1], outputs[2]))
-        self.assertTrue(jnp.array_equal(inputs[2], outputs[3]))
-
-
-class PackTest(absltest.TestCase):
-    def setUp(self):
-        self.module = xnn.Pack()
-
-    def test_forward(self):
-        inputs = jrand.normal(xrand.split(), shape=(8,))
-        forward, params, states = self.module
-        outputs, states = forward(params, inputs, states)
-        self.assertTrue(jnp.array_equal(inputs, outputs[0]))
-
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module, 2)
-        inputs = jrand.normal(xrand.split(), shape=(2, 8))
-        outputs, states = forward(params, inputs, states)
-        self.assertTrue(jnp.array_equal(inputs, outputs[0]))
-
-
-class UnpackTest(absltest.TestCase):
-    def setUp(self):
-        self.module = xnn.Unpack()
-
-    def test_forward(self):
-        inputs = [jrand.normal(xrand.split(), shape=(8,))]
-        forward, params, states = self.module
-        outputs, states = forward(params, inputs, states)
-        self.assertTrue(jnp.array_equal(inputs[0], outputs))
-
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module, 2)
-        inputs = [jrand.normal(xrand.split(), shape=(2, 8))]
-        outputs, states = forward(params, inputs, states)
-        self.assertTrue(jnp.array_equal(inputs[0], outputs))
 
 
 class ArithmeticTest(absltest.TestCase):

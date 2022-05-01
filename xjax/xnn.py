@@ -341,6 +341,16 @@ def Unpack():
     return ModuleTuple(forward, None, None)
 
 
+def ZeroInput(func, *args, **kwargs):
+    def forward(params, inputs, states):
+        return func(*args, **kwargs), states
+    return ModuleTuple(forward, None, None)
+# Construction functions
+Zeros = partial(ZeroInput, jnp.zeros)
+Ones = partial(ZeroInput, jnp.ones)
+Full = partial(ZeroInput, jnp.full)
+
+
 def SingleInput(func, *args, **kwargs):
     """Layer that feed func with inputs.
     Used for modules that do not have params and states. Hyper-parameters are
@@ -372,6 +382,10 @@ Sum = partial(SingleInput, jnp.sum)
 Var = partial(SingleInput, jnp.var)
 Norm = partial(SingleInput, jnp.linalg.norm)
 Logsumexp = partial(SingleInput, jnn.logsumexp)
+# Construction functions
+ZerosLike = partial(SingleInput, jnp.zeros_like)
+OnesLike = partial(SingleInput, jnp.ones_like)
+FullLike = partial(SingleInput, jnp.full_like)
 # Shape transformation functions
 Transpose = partial(SingleInput, jnp.transpose)
 Reshape = partial(SingleInput, jnp.reshape)
