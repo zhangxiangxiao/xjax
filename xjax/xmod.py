@@ -23,6 +23,7 @@ from collections import namedtuple
 
 import jax
 from jax import numpy as jnp
+from jax import tree_util as jtree
 from xjax import xnn
 
 
@@ -249,7 +250,17 @@ def Embed(*args):
         grads_net_outputs, _ = loss_vjpf(grads_loss_outputs)
         grads_net_params, grads_embed_outputs = net_vjpf(grads_net_outputs)
         # Build segment gradients for embed modules.
-        grads_embed_params = tuple(zip(embed_inputs, grads_embed_outputs))
+        if len(args) > 3:
+            grads_embed_params = []
+            for index, grads_value in zip(embed_inputs, grads_embed_outputs):
+                grads_embed_params.append((
+                    jnp.concatenate(jtree.tree_leaves(index)),
+                    jnp.concatenate(jtree.tree_leaves(grads_value))))
+            grads_embed_params = tuple(grads_embed_params)
+        else:
+            grads_embed_params = (
+                jnp.concatenate(jtree.tree_leaves(embed_inputs)),
+                jnp.concatenate(jtree.tree_leaves(grads_embed_outputs)))
         grads = (grads_embed_params, grads_net_params)
         return grads, net_outputs, loss_outputs, states
     return ModelTuple(forward, backward, initial_params, initial_states)
