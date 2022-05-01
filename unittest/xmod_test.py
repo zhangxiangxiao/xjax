@@ -155,7 +155,7 @@ class GANTest(absltest.TestCase):
         self.assertEqual((2,), disc_loss_outputs.shape)
 
 
-class ParallelEmbedTest(absltest.TestCase):
+class EmbedTest(absltest.TestCase):
     def setUp(self):
         self.embed0 = xnn.Embed(64, 8)
         self.embed1 = xnn.Embed(64, 8)
@@ -163,7 +163,7 @@ class ParallelEmbedTest(absltest.TestCase):
             xnn.Parallel(xnn.Mean(axis=0), xnn.Mean(axis=0)),
             xnn.Add(), xnn.Mean())
         self.loss = xnn.Multiply()
-        self.model = xmod.ParallelEmbed(
+        self.model = xmod.Embed(
             self.embed0, self.embed1, self.net, self.loss)
 
     def test_forward(self):
@@ -212,11 +212,11 @@ class ParallelEmbedTest(absltest.TestCase):
         embed1_outputs, embed1_states = embed1_forward(
             embed1_params, inputs[0][1], embed1_states)
         ref_backward = jax.grad(ref_forward)
-        ref_grads = ref_backward([embed0_outputs, embed1_outputs])
+        ref_grads = ref_backward((embed0_outputs, embed1_outputs))
         def assert_true(ref, ind, grad):
             self.assertTrue(jnp.allclose(ind, grad[0]))
             self.assertTrue(jnp.allclose(ref, grad[1]))
-        jax.tree_map(assert_true, ref_grads, inputs[0], grads[0])
+        jax.tree_map(assert_true, ref_grads, tuple(inputs[0]), grads[0])
 
 
 if __name__ == '__main__':

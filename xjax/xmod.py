@@ -188,11 +188,11 @@ def GAN(gen, disc, gen_loss, disc_loss):
     return ModelTuple(forward, backward, initial_params, initial_states)
 
 
-def ParallelEmbed(*args):
-    """Parallel embed model that supports segment gradients.
+def Embed(*args):
+    """Embedding model that supports segment gradients.
 
     Args:
-      embed0, embed1, ....: a sequence of embedding modules.
+      embed0, embed1, ....: a sequence of xnn.Embed modules.
       net: the network module that accepts embedded results.
       loss: the loss module.
 
@@ -204,7 +204,10 @@ def ParallelEmbed(*args):
       initial_params: the initial parameters which is (embed_params, net_params)
       initial_states: the initial states.
     """
-    embed = xnn.Parallel(*args[0:-2])
+    if len(args) > 3:
+        embed = xnn.Parallel(*args[0:-2])
+    else:
+        embed = args[0]
     net = args[-2]
     loss = args[-1]
     embed_forward, embed_params, embed_initial_states = embed
