@@ -36,6 +36,30 @@ class EvaluatorTest(absltest.TestCase):
         self.assertEqual((2,), outputs.shape)
 
 
+class BinaryEvalTest(absltest.TestCase):
+    def setUp(self):
+        self.evaluator = xeval.BinaryEval()
+
+    def test_evaluate(self):
+        evaluate, states = self.evaluator
+        rng1, rng2, rng3 = xrand.split(3)
+        inputs = [jrand.normal(rng1, shape=(8,)),
+                  jnp.array([-1, 1, 1, -1])]
+        net_outputs = jnp.array([-0.5, -0.1, 0.2, 1.3])
+        outputs, states = evaluate(inputs, net_outputs, states)
+        self.assertTrue(jnp.allclose(jnp.array(0.5), outputs))
+
+    def test_vmap(self):
+        evaluate, states = xeval.vmap(self.evaluator, 2)
+        rng1, rng2, rng3 = xrand.split(3)
+        inputs = [jrand.normal(rng1, shape=(2, 8)),
+                  jnp.array([[-1, 1, 1, -1], [1, -1, 1, -1]])]
+        net_outputs = jnp.array([[-0.5, -0.1, 0.2, 1.3],
+                                 [-0.2, -0.3, -0.7, -1.1]])
+        outputs, states = evaluate(inputs, net_outputs, states)
+        self.assertTrue(jnp.allclose(jnp.array([0.5, 0.5]), outputs))
+
+
 class ClassEvalTest(absltest.TestCase):
     def setUp(self):
         self.evaluator = xeval.ClassEval()

@@ -34,6 +34,15 @@ def Evaluator(module):
     return EvaluatorTuple(evaluate, initial_states)
 
 
+def BinaryEval():
+    """Binary classification evaluator. Assuming _, labels = inputs. labels is
+       either -1 or 1."""
+    def evaluate(inputs, net_outputs, states):
+        net_labels = jnp.where(net_outputs > 0, 1, -1)
+        return jnp.mean(jnp.equal(inputs[1], net_labels)), states
+    return EvaluatorTuple(evaluate, None)
+
+
 def ClassEval():
     """Classification evaluator. Assuming _, labels = inputs."""
     def evaluate(inputs, net_outputs, states):
