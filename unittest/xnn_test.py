@@ -617,6 +617,34 @@ class RandomTest(absltest.TestCase):
         return self.template(xnn.Bernoulli, jrand.bernoulli)                                                                                                        
 
 
+class RandomLikeTest(absltest.TestCase):
+    def template(self, module, func, *args, **kwargs):
+        module_rng = xrand.split()
+        forward, params, states = module(module_rng, *args, **kwargs)
+        inputs = jrand.normal(xrand.split(), shape=(8, 4))
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((8, 4), outputs.shape)
+        reference_rng, _ = jrand.split(module_rng)
+        reference = func(reference_rng, shape=(8, 4), *args, **kwargs)
+        self.assertTrue(jnp.array_equal(reference, outputs))
+
+        module_v_rng = xrand.split()
+        forward_v, params_v, states_v = xnn.vmap(module(
+            module_v_rng, *args, **kwargs), 2)
+        inputs_v = jrand.normal(xrand.split(), shape=(2, 8,4))
+        outputs, states = forward_v(params_v, inputs_v, states_v)
+        self.assertEqual((2, 8, 4), outputs.shape)
+
+    def test_normal(self):
+        return self.template(xnn.NormalLike, jrand.normal)
+
+    def test_uniform(self):
+        return self.template(xnn.UniformLike, jrand.uniform)
+
+    def test_bernoulli(self):
+        return self.template(xnn.BernoulliLike, jrand.bernoulli)
+
+
 class SequentialTest(absltest.TestCase):
     def setUp(self):
         self.module = xnn.Sequential(

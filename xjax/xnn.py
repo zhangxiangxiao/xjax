@@ -408,6 +408,20 @@ Uniform = partial(Random, jrand.uniform)
 Bernoulli = partial(Random, jrand.bernoulli)
 
 
+def RandomLike(func, rng=None, *args, **kwargs):
+    """Layer that generate random numbers."""
+    rng = rng if rng is not None else xrand.split()
+    @tree_forward
+    def forward(params, inputs, states):
+        func_rng, new_rng = jrand.split(states['rng'])
+        outputs = func(func_rng, *args, shape=inputs.shape, **kwargs)
+        return outputs, {'rng': new_rng}
+    return ModuleTuple(forward, None, {'rng': rng})
+NormalLike = partial(RandomLike, jrand.normal)
+UniformLike = partial(RandomLike, jrand.uniform)
+BernoulliLike = partial(RandomLike, jrand.bernoulli)
+
+
 def pack_states(states):
     """Pack states for container."""
     new_states = {}
