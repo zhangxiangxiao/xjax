@@ -1,6 +1,4 @@
-"""
-Unittests for xnn.
-"""
+"""Unittests for xnn."""
 
 from xjax import xnn
 
@@ -171,7 +169,7 @@ class AvgPoolTest(absltest.TestCase):
 
 class ResizeTest(absltest.TestCase):
     def setUp(self):
-        self.module = xnn.Resize(factor=(1, 2, 0.5, 1.5), method='linear')
+        self.module = xnn.Resize((8, 32, 16, 48), 'linear')
 
     def test_forward(self):
         forward, params, states = self.module
@@ -186,6 +184,29 @@ class ResizeTest(absltest.TestCase):
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 16, 32, 32))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 8, 32, 16, 48), outputs.shape)
+
+
+class ResizeLikeTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.ResizeLike('linear')
+
+    def test_forward(self):
+        forward, params, states = self.module
+        inputs = [jrand.normal(xrand.split(), shape=(8, 16, 32, 32)),
+                  jrand.normal(xrand.split(), shape=(8, 32, 16, 48))]
+        outputs, states = forward(params, inputs, states)
+        ref_outputs = [jimage.resize(inputs[0], (8, 32, 16, 48), 'linear'),
+                       inputs[1]]
+        self.assertTrue(jnp.allclose(ref_outputs[0], outputs[0]))
+        self.assertTrue(jnp.allclose(ref_outputs[1], outputs[1]))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        inputs = [jrand.normal(xrand.split(), shape=(2, 8, 16, 32, 32)),
+                  jrand.normal(xrand.split(), shape=(2, 8, 32, 16, 48))]
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((2, 8, 32, 16, 48), outputs[0].shape)
+        self.assertEqual((2, 8, 32, 16, 48), outputs[1].shape)
 
 
 class FlattenUpToTest(absltest.TestCase):

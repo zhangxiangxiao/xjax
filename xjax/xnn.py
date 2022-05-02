@@ -54,7 +54,6 @@ def tree_forward(forward):
     return wrapped_forward
 
 
-
 def Linear(in_dim, out_dim, w_init=jinit.glorot_normal(), b_init=jinit.normal(),
            rng=None):
     rng = rng if rng is not None else xrand.split()
@@ -263,23 +262,40 @@ def AvgPool(kernel, stride, dilation, padding='SAME', *args, **kwargs):
     return ModuleTuple(forward, None, None)
 
 
-def Resize(factor, method='nearest', *args, **kwargs):
-    """Resize the input using jax.image.resize().
+def Resize(shape, method='nearest', *args, **kwargs):
+    """Resize the inputs using jax.image.resize().
     
     Args:
-      factor: the factor of resize. The shape of outputs is factor multiplying
-        the shape of inputs, floored to the nearest integer.
+      shape: the shape to resize inputs into.
       method: the resize method.
 
     Returns:
       forward: the forward function.
-      params: initial parameteers.
+      params: initial parameters.
       states: initial states.
     """
     @tree_forward
     def forward(params, inputs, states):
-        shape = (math.floor(s * f) for s, f in zip(inputs.shape, factor))
         outputs = jimage.resize(inputs, shape, method, *args, **kwargs)
+        return outputs, states
+    return ModuleTuple(forward, None, None)
+
+
+def ResizeLike(method='nearest', *args, **kwargs):
+    """Resize inputs[0] to the shape of inputs[1]. Both are returned.
+
+    Args:
+      method: the resize method.
+
+    Returns:
+      forward: the forward function.
+      params: initial parameters.
+      states: initial_states.
+    """
+    def forward(params, inputs, states):
+        resized = jimage.resize(
+            inputs[0], inputs[1].shape, method, *args, **kwargs)
+        outputs = type(inputs)([resized, inputs[1]])
         return outputs, states
     return ModuleTuple(forward, None, None)
 
