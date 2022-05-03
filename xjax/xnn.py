@@ -356,6 +356,12 @@ def Unpack():
         return outputs, states
     return ModuleTuple(forward, None, None)
 
+def Concatenate(*args, **kwargs):
+    """Concatenate the inputs."""
+    def forward(params, inputs, states):
+        return jnp.concatenate(inputs, *args, **kwargs), states
+    return ModuleTuple(forward, None, None)
+
 
 def ZeroInput(func, *args, **kwargs):
     def forward(params, inputs, states):

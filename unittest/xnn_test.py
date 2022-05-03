@@ -342,6 +342,28 @@ class UnpackTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(inputs[0], outputs))
 
 
+class ConcatenateTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.Concatenate()
+
+    def test_forward(self):
+        forward, params, states = self.module
+        inputs = [jrand.normal(xrand.split(), shape=(8,)),
+                  jrand.normal(xrand.split(), shape=(4,)),
+                  jrand.normal(xrand.split(), shape=(16,))]
+        outputs, states = forward(params, inputs, states)
+        ref_outputs = jnp.concatenate(inputs)
+        self.assertTrue(jnp.array_equal(ref_outputs, outputs))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
+                  jrand.normal(xrand.split(), shape=(2, 4)),
+                  jrand.normal(xrand.split(), shape=(2, 16))]
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((2, 28), outputs.shape)
+
+
 class ConstructionZeroInputTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
         self.module = module((8,), *args, **kwargs)
