@@ -68,7 +68,7 @@ def Linear(in_dim, out_dim, w_init=jinit.glorot_normal(), b_init=jinit.normal(),
     return ModuleTuple(forward, initial_params, None)
 
 
-def Embed(embed_size, embed_dim, embed_init=jinit.normal(), rng=None):
+def Embed(embed_size, embed_dim, embed_init=jinit.glorot_normal(), rng=None):
     rng = rng if rng is not None else xrand.split()
     initial_params = embed_init(rng, (embed_size, embed_dim))
     @tree_forward
@@ -521,6 +521,26 @@ def Sequential(*modules):
                     params[i], outputs, states[i])
             else:
                 outputs, _ = forwards[i](params[i], outputs, None)
+        return outputs, pack_states(new_states)
+    return ModuleTuple(forward, initial_params, initial_states)
+
+
+def DenseSequential(*modules):
+    """Sequential where outputs are the concatenated outputs of all layers."""
+    forwards, initial_params, initial_states_list = zip(*modules)
+    initial_states = pack_states_list(initial_states_list)
+    def forward(params, inputs, states):
+        outputs = []
+        states = unpack_states(states)
+        module_outputs = inputs
+        new_states = {}
+        for i in range(len(forwards)):
+            if states is not None and i in states:
+                module_outputs, new_states[i] = forwards[i](
+                    params[i], module_outputs, states[i])
+            else:
+                module_outputs, _ = forwards[i](params[i], module_outputs, None)
+            outputs.append(module_outputs)
         return outputs, pack_states(new_states)
     return ModuleTuple(forward, initial_params, initial_states)
 

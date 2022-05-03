@@ -756,6 +756,34 @@ class SequentialTest(absltest.TestCase):
         self.assertEqual((2,), outputs.shape)
 
 
+class DenseSequentialTest(absltest.TestCase):
+    def setUp(self):
+        self.module1 = xnn.Linear(8, 16)
+        self.module2 = xnn.Dropout()
+        self.module3 = xnn.ReLU()
+        self.module4 = xnn.Linear(16, 4)
+        self.module = xnn.DenseSequential(
+            self.module1, self.module2, self.module3, self.module4)
+
+    def test_forward(self):
+        forward, params, states = self.module
+        inputs = jrand.normal(xrand.split(), shape=(8,))
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual(4, len(outputs))
+        forward1, params1, states1 = self.module1
+        outputs1, states1 = forward1(params1, inputs, states1)
+        self.assertTrue(jnp.allclose(outputs[0], outputs1))
+        forward2, params2, states2 = self.module2
+        outputs2, states2 = forward2(params2, outputs1, states2)
+        self.assertTrue(jnp.allclose(outputs[1], outputs2))
+        forward3, params3, states3 = self.module3
+        outputs3, states3 = forward3(params3, outputs2, states3)
+        self.assertTrue(jnp.allclose(outputs[2], outputs3))
+        forward4, params4, states4 = self.module4
+        outputs4, states4 = forward4(params4, outputs3, states4)
+        self.assertTrue(jnp.allclose(outputs[3], outputs4))
+
+
 class ParallelTest(absltest.TestCase):
     def setUp(self):
         self.module = xnn.Parallel(
