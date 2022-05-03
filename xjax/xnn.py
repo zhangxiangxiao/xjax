@@ -293,10 +293,11 @@ def ResizeLike(method='nearest', *args, **kwargs):
       states: initial_states.
     """
     def forward(params, inputs, states):
-        resized = jimage.resize(
-            inputs[0], inputs[1].shape, method, *args, **kwargs)
-        outputs = type(inputs)([resized, inputs[1]])
-        return outputs, states
+        def leaf_resize(inputs0, inputs1):
+            return jimage.resize(inputs0, inputs1.shape, method,
+                                 *args, **kwargs)
+        outputs = [jax.tree_map(leaf_resize, inputs[0], inputs[1]), inputs[1]]
+        return type(inputs)(outputs), states
     return ModuleTuple(forward, None, None)
 
 
