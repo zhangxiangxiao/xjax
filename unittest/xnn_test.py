@@ -342,28 +342,6 @@ class UnpackTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(inputs[0], outputs))
 
 
-class ConcatenateTest(absltest.TestCase):
-    def setUp(self):
-        self.module = xnn.Concatenate()
-
-    def test_forward(self):
-        forward, params, states = self.module
-        inputs = [jrand.normal(xrand.split(), shape=(8,)),
-                  jrand.normal(xrand.split(), shape=(4,)),
-                  jrand.normal(xrand.split(), shape=(16,))]
-        outputs, states = forward(params, inputs, states)
-        ref_outputs = jnp.concatenate(inputs)
-        self.assertTrue(jnp.array_equal(ref_outputs, outputs))
-
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module, 2)
-        inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
-                  jrand.normal(xrand.split(), shape=(2, 4)),
-                  jrand.normal(xrand.split(), shape=(2, 16))]
-        outputs, states = forward(params, inputs, states)
-        self.assertEqual((2, 28), outputs.shape)
-
-
 class ConstructionZeroInputTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
         self.module = module((8,), *args, **kwargs)
@@ -703,6 +681,29 @@ class DotTest(absltest.TestCase):
         outputs, states = forward(params, [matrix, vector], states)
         self.assertEqual((2, 8), outputs.shape)
 
+
+class ListInputTest(absltest.TestCase):
+    def template(self, module, func, *args, **kwargs):
+        forward, params, states = module(*args, **kwargs)
+        inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
+                  jrand.normal(xrand.split(), shape=(2, 8)),
+                  jrand.normal(xrand.split(), shape=(2, 8))]
+        outputs, states = forward(params, inputs, states)
+        ref_outputs = func(inputs, *args, **kwargs)
+        self.assertTrue(jnp.allclose(ref_outputs, outputs))
+
+        forward_v, params_v, states_v = xnn.vmap(module(*args, **kwargs), 2)
+        inputs_v = [jrand.normal(xrand.split(), shape=(2, 2, 8)),
+                    jrand.normal(xrand.split(), shape=(2, 2, 8)),
+                    jrand.normal(xrand.split(), shape=(2, 2, 8))]
+        outputs_v, states_v = forward_v(params_v, inputs_v, states_v)
+        self.assertTrue((2,) + outputs.shape, outputs_v.shape)
+
+    def test_concatenate(self):
+        return self.template(xnn.Concatenate, jnp.concatenate)
+
+    def test_stack(self):
+        return self.template(xnn.Stack, jnp.stack)
 
 
 class RandomTest(absltest.TestCase):

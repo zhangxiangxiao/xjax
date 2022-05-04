@@ -359,12 +359,6 @@ def Unpack():
         return outputs, states
     return ModuleTuple(forward, None, None)
 
-def Concatenate(*args, **kwargs):
-    """Concatenate the inputs."""
-    def forward(params, inputs, states):
-        return jnp.concatenate(inputs, *args, **kwargs), states
-    return ModuleTuple(forward, None, None)
-
 
 def ZeroInput(func, *args, **kwargs):
     def forward(params, inputs, states):
@@ -452,6 +446,21 @@ def logcosh(x, y):
     # log(cosh(z)) = log((exp(z)+exp(-z))/2) = log(exp(z)+exp(-z))-log(2)
     return jnp.logaddexp(x - y, y - x) - math.log(2)
 LogCosh = partial(MultiInput, logcosh)
+
+
+def ListInput(func, *args, **kwargs):
+    """
+    Layer that applies func to an input which is a list. Hypaer-parameters are
+    stored in kwargs as a function closure.
+    """
+    def forward(params, inputs, states):
+        def wrapped_func(*inputs):
+            return func(inputs, *args, **kwargs)
+        return jax.tree_map(wrapped_func, *inputs), states
+    return ModuleTuple(forward, None, None)
+Concatenate = partial(ListInput, jnp.concatenate)
+Stack = partial(ListInput, jnp.stack)
+
 
 def Random(func, rng=None, *args, **kwargs):
     """Layer that generate random numbers."""
