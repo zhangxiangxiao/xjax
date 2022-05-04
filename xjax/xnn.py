@@ -198,7 +198,8 @@ def Deconv(in_dim, out_dim, kernel, stride=None, dilation=None, padding='SAME',
     return ModuleTuple(forward, initial_params, None)
 
 
-def MaxPool(kernel, stride, dilation, padding='SAME', *args, **kwargs):
+def MaxPool(kernel, stride=None, dilation=None, padding='SAME',
+            *args, **kwargs):
     """n-D max pooling layer.
 
     Args:
@@ -230,7 +231,8 @@ def MaxPool(kernel, stride, dilation, padding='SAME', *args, **kwargs):
     return ModuleTuple(forward, None, None)
 
 
-def AvgPool(kernel, stride, dilation, padding='SAME', *args, **kwargs):
+def AvgPool(kernel, stride=None, dilation=None, padding='SAME', *args,
+            **kwargs):
     """n-D average pooling layer.
 
     Args:
