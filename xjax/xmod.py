@@ -305,5 +305,8 @@ def vectorize(map_func, model, size, *args, **kwargs):
         return grads, net_outputs, loss_outputs, states
     return ModelTuple(forward, backward, initial_params, initial_states)
 
-vmap = partial(vectorize, jax.vmap)
-pmap = partial(vectorize, jax.pmap)
+def vmap(model, size, *args, **kwargs):
+    return vectorize(jax.vmap, model, size, *args, **kwargs)
+
+def pmap(model, size, *args, **kwargs):
+    return vectorize(jax.pmap, model, size, *args, **kwargs)

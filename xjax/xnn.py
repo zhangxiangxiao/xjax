@@ -648,5 +648,8 @@ def vectorize(map_func, module, size, *args, **kwargs):
         return outputs, new_states
     return ModuleTuple(forward, initial_params, initial_states)
 
-vmap = partial(vectorize, jax.vmap)
-pmap = partial(vectorize, jax.pmap)
+def vmap(module, size, *args, **kwargs):
+    return vectorize(jax.vmap, module, size, *args, **kwargs)
+
+def pmap(module, size, *args, **kwargs):
+    return vectorize(jax.pmap, module, size, *args, **kwargs)

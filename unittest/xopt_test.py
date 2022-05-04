@@ -107,15 +107,17 @@ class SegmentTest(absltest.TestCase):
             velocity = jnp.zeros_like(param)
             index, grad_value = grad1
             param_value = jnp.take(param, index, axis=0)
-            velocity_value = jnp.take(param, index, axis=0)
-            velocity_value = 0.5 * velocity_value + grad_value + 0.003 * param
-            velocity = velocity.at[index].set(velocity_vale)
+            velocity_value = jnp.take(velocity, index, axis=0)
+            velocity_value = (0.5 * velocity_value + grad_value +
+                              0.003 * param_value)
+            velocity = velocity.at[index].set(velocity_value)
             param = param.at[index].add(-0.02 * velocity_value)
             index, grad_value = grad2
             param_value = jnp.take(param, index, axis=0)
-            velocity_value = jnp.take(param, index, axis=0)
-            velocity_value = 0.5 * velocity_value + grad_value + 0.003 * param
-            velocity = velocity.at[index].set(velocity_vale)
+            velocity_value = jnp.take(velocity, index, axis=0)
+            velocity_value = (0.5 * velocity_value + grad_value +
+                              0.003 * param_value)
+            velocity = velocity.at[index].set(velocity_value)
             param = param.at[index].add(-0.02 * velocity_value)
             self.assertTrue(jnp.allclose(param, result))
         jax.tree_map(test_result, self.params, self.grads1, self.grads2, params)

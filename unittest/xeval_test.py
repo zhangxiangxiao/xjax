@@ -82,8 +82,8 @@ class ClassEvalTest(absltest.TestCase):
                   jrand.randint(rng2, shape=(2,), minval=0, maxval=4)]
         net_outputs = jrand.normal(rng1, shape=(2, 4))
         outputs, states = evaluate(inputs, net_outputs, states)
-        reference = jnp.mean(jnp.equal(
-            inputs[1], jnp.argmax(net_outputs, axis=-1)))
+        reference = jnp.equal(
+            inputs[1], jnp.argmax(net_outputs, axis=-1))
         self.assertTrue(jnp.allclose(reference, outputs))
 
 

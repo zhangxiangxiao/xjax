@@ -113,6 +113,17 @@ def Momentum(initial_params, rate=0.1, coeff=0.9, decay=0):
     return OptimizerTuple(update, initial_states)
 
 
+def InverseTimeSchedule(a=1, b=0, decay=1):
+    """Returns a schedule function that computes
+    ratio = 1 / (1 + decay * step)
+    result = ratio * a + (1 - ratio) * b
+    """
+    def schedule(step):
+        ratio = 1 / (1 + decay * step)
+        return ratio * a + (1 - ratio) * b
+    return schedule
+
+
 def vectorize(optimizer):
     """Vectorize the optimizer for vmap or pmap gradients.
     Gradients are averaged over the mapped dims.
@@ -136,15 +147,5 @@ def vectorize(optimizer):
         return opt_update(params, grads, states)
     return OptimizerTuple(update, initial_states)
 
-vmap = vectorize
-# pmap = vectorize
-
-def InverseTimeSchedule(a=1, b=0, decay=1):
-    """Returns a schedule function that computes
-    ratio = 1 / (1 + decay * step)
-    result = ratio * a + (1 - ratio) * b
-    """
-    def schedule(step):
-        ratio = 1 / (1 + decay * step)
-        return ratio * a + (1 - ratio) * b
-    return schedule
+def vmap(optimizer):
+    return vectorize(optimizer)

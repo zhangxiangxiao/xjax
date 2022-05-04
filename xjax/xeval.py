@@ -73,5 +73,8 @@ def vectorize(map_func, evaluator, size, *args, **kwargs):
         return outputs, new_states
     return EvaluatorTuple(evaluate, initial_states)
 
-vmap = partial(vectorize, jax.vmap)
-pmap = partial(vectorize, jax.pmap)
+def vmap(evaluator, size, *args, **kwargs):
+    return vectorize(jax.vmap, evaluator, size, *args, **kwargs)
+
+def pmap(evaluator, size, *args, **kwargs):
+    return vectorize(jax.pmap, evaluator, size, *args, **kwargs)
