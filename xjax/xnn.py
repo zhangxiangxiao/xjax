@@ -472,6 +472,7 @@ def Random(func, rng=None, *args, **kwargs):
 Normal = partial(Random, jrand.normal)
 Uniform = partial(Random, jrand.uniform)
 Bernoulli = partial(Random, jrand.bernoulli)
+Exponential = partial(Random, jrand.exponential)
 
 
 def RandomLike(func, rng=None, *args, **kwargs):
@@ -486,6 +487,7 @@ def RandomLike(func, rng=None, *args, **kwargs):
 NormalLike = partial(RandomLike, jrand.normal)
 UniformLike = partial(RandomLike, jrand.uniform)
 BernoulliLike = partial(RandomLike, jrand.bernoulli)
+ExponentialLike = partial(RandomLike, jrand.exponential)
 
 
 def pack_states(states):

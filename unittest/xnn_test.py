@@ -730,7 +730,10 @@ class RandomTest(absltest.TestCase):
         return self.template(xnn.Uniform, jrand.uniform)
         
     def test_bernoulli(self):
-        return self.template(xnn.Bernoulli, jrand.bernoulli)                                                                                                        
+        return self.template(xnn.Bernoulli, jrand.bernoulli)
+
+    def test_exponential(self):
+        return self.template(xnn.Exponential, jrand.exponential)
 
 
 class RandomLikeTest(absltest.TestCase):
@@ -759,6 +762,9 @@ class RandomLikeTest(absltest.TestCase):
 
     def test_bernoulli(self):
         return self.template(xnn.BernoulliLike, jrand.bernoulli)
+
+    def test_exponential(self):
+        return self.template(xnn.ExponentialLike, jrand.exponential)
 
 
 class SequentialTest(absltest.TestCase):
