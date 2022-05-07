@@ -49,7 +49,7 @@ class LearnerTest(absltest.TestCase):
             data.append([jrand.normal(rng0, shape=(8,)),
                          jrand.normal(rng1, shape=(4,))])
         # Write a callback
-        def callback(step, params, grads, net_out, loss_out, eval_out,
+        def callback(step, inputs, params, grads, net_out, loss_out, eval_out,
                      total_loss, total_eval):
             print(step, jnp.mean(loss_out), jnp.mean(eval_out),
                   jnp.mean(total_loss), jnp.mean(total_eval))
@@ -73,7 +73,8 @@ class LearnerTest(absltest.TestCase):
             data.append([jrand.normal(rng0, shape=(8,)),
                          jrand.normal(rng1, shape=(4,))])
         # Write a callback
-        def callback(step, net_out, loss_out, eval_out, total_loss, total_eval):
+        def callback(step, inputs, net_out, loss_out, eval_out, total_loss,
+                     total_eval):
             print(step, jnp.mean(loss_out), jnp.mean(eval_out),
                   jnp.mean(total_loss), jnp.mean(total_eval))
         total_loss_outputs, total_eval_outputs, states = test(

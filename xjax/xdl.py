@@ -40,13 +40,13 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
         is `loss_outputs, eval_outputs, states = train(data, states, callback=None)`.
         `data` is a Python iterator that goes through sample inputs. `callback`
         is a function to be called at every optimization update, defined as
-        `callback(step, params, grads, net_outputs, loss_outputs, eval_outputs,
-        total_loss_outputs, total_eval_outputs)`.
+        `callback(step, params, grads, inputs, net_outputs, loss_outputs,
+        eval_outputs, total_loss_outputs, total_eval_outputs)`.
       test: a function that can be called to test the model. The signature is
         `loss_outputs, eval_outputs, states = test(data, states, callback=None)`.
         `data` is a Python iterator that goes through sample inputs. `callback`
         is a function to be called at every optimization update, defined as
-        `callback(step, net_outputs, loss_outputs, eval_outputs,
+        `callback(step, inputs, net_outputs, loss_outputs, eval_outputs,
         total_loss_outputs, total_eval_outputs)`.
       states: the initial states of learner that contains model parameters
         and other states. `states[0]` is always the model parameter.
@@ -86,7 +86,7 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
                     total_eval_outputs, eval_outputs)
             params, opt_states = update(params, grads, opt_states)
             if callback is not None:
-                callback(opt_states[0] - 1, params, grads, net_outputs,
+                callback(opt_states[0] - 1, params, grads, inputs, net_outputs,
                          loss_outputs, eval_outputs, total_loss_outputs,
                          total_eval_outputs)
             step = step + 1
@@ -116,7 +116,7 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
                     lambda x, y: step / (step + 1) * x + 1 / (step + 1) * y,
                     total_eval_outputs, eval_outputs)
             if callback is not None:
-                callback(step, net_outputs, loss_outputs, eval_outputs,
+                callback(step, inputs, net_outputs, loss_outputs, eval_outputs,
                          total_loss_outputs, total_eval_outputs)
             step = step + 1
         states = LearnerStatesTuple(
