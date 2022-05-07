@@ -113,6 +113,25 @@ def Momentum(initial_params, rate=0.1, coeff=0.9, decay=0):
     return OptimizerTuple(update, initial_states)
 
 
+def Container(*optimizers):
+    """Container of multiple optimizers."""
+    updates, opt_states = zip(*optimizers)
+    initial_states = (0, tuple(state[1] for state in opt_states))
+    def update(params, grads, states):
+        step = states[0]
+        new_params = []
+        new_states = []
+        for update, param, grad, state in zip(
+                updates, params, grads, states[1]):
+            new_param, new_state = update(param, grad, (step, state))
+            new_params.append(new_param)
+            new_states.append(new_state[1])
+        new_params = type(params)(new_params)
+        new_states = (step + 1, tuple(new_states))
+        return new_params, new_states
+    return OptimizerTuple(update, initial_states)
+
+
 def InverseTimeSchedule(a=1, b=0, decay=1):
     """Returns a schedule function that computes
     ratio = 1 / (1 + decay * step)
