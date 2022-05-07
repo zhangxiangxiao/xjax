@@ -51,6 +51,15 @@ def ClassEval():
     return EvaluatorTuple(evaluate, None)
 
 
+def CategoricalEval():
+    """Categorical classification evaluator. Assuming _, targets = inputs."""
+    def evaluate(inputs, net_outputs, states):
+        net_labels = jnp.argmax(net_outputs, axis=-1)
+        tar_labels = jnp.argmax(inputs[1], axis=-1)
+        return jnp.mean(jnp.equal(net_labels, tar_labels)), states
+    return EvaluatorTuple(evaluate, None)
+
+
 def vectorize(map_func, evaluator, size, *args, **kwargs):
     """Vectorize the evaluator.
 
