@@ -409,6 +409,7 @@ FullLike = partial(SingleInput, jnp.full_like)
 Transpose = partial(SingleInput, jnp.transpose)
 Reshape = partial(SingleInput, jnp.reshape)
 Repeat = partial(SingleInput, jnp.repeat)
+Split = partial(SingleInput, jnp.split)
 
 def mul_const(inputs, const):
     """Multiply by a constant."""

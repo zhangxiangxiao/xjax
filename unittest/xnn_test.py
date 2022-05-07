@@ -248,6 +248,23 @@ class FlattenUpToTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(outputs[3][1], inputs[2][1][1]))
 
 
+class IdentityTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.Identity()
+
+    def test_forward(self):
+        inputs = jrand.normal(xrand.split(), shape=(8, 4))
+        forward, params, states = self.module
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs, outputs))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        inputs = jrand.normal(xrand.split(), shape=(2, 8, 4))
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs, outputs))
+
+
 class GroupTest(absltest.TestCase):
     def setUp(self):
         self.module = xnn.Group(ind=[[0,1,2],[4,3,2]])
@@ -546,21 +563,23 @@ class RepeatTest(absltest.TestCase):
         self.assertEqual((2, 8, 16), outputs.shape)
 
 
-class IdentityTest(absltest.TestCase):
+class SplitTest(absltest.TestCase):
     def setUp(self):
-        self.module = xnn.Identity()
+        self.module = xnn.Split([2], axis=0)
 
     def test_forward(self):
         inputs = jrand.normal(xrand.split(), shape=(8, 4))
         forward, params, states = self.module
         outputs, states = forward(params, inputs, states)
-        self.assertTrue(jnp.array_equal(inputs, outputs))
+        self.assertTrue(jnp.array_equal(inputs[:2, :], outputs[0]))
+        self.assertTrue(jnp.array_equal(inputs[2:, :], outputs[1]))
 
     def test_vmap(self):
         forward, params, states = xnn.vmap(self.module, 2)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 4))
         outputs, states = forward(params, inputs, states)
-        self.assertTrue(jnp.array_equal(inputs, outputs))
+        self.assertTrue(jnp.array_equal(inputs[:, :2, :], outputs[0]))
+        self.assertTrue(jnp.array_equal(inputs[:, 2:, :], outputs[1]))
 
 
 class MulConstTest(absltest.TestCase):
