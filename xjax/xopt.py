@@ -168,3 +168,16 @@ def vectorize(optimizer):
 
 def vmap(optimizer):
     return vectorize(optimizer)
+
+
+def jit(optimizer, *args, **kwargs):
+    """Set up the optmizer for JIT.
+
+    Args:
+      optimizer: an xopt optimizer.
+
+    Returns:
+      jit_optimizer: JIT'ed optimizer.
+    """
+    update, states = optimizer
+    return OptimizerTuple(jax.jit(update, *args, **kwargs), states)

@@ -310,3 +310,17 @@ def vmap(model, size, *args, **kwargs):
 
 def pmap(model, size, *args, **kwargs):
     return vectorize(jax.pmap, model, size, *args, **kwargs)
+
+
+def jit(model, *args, **kwargs):
+    """Set up the model for JIT.
+
+    Args:
+      model: an xmod model.
+
+    Returns:
+      jit_model: JIT'ed model.
+    """
+    forward, backward, params, states = model
+    return ModelTuple(jax.jit(forward, *args, **kwargs),
+                      jax.jit(backward, *args, **kwargs), params, states)

@@ -266,7 +266,7 @@ def AvgPool(kernel, stride=None, dilation=None, padding='SAME', *args,
 
 def Resize(shape, method='nearest', *args, **kwargs):
     """Resize the inputs using jax.image.resize().
-    
+
     Args:
       shape: the shape to resize inputs into.
       method: the resize method.
@@ -667,3 +667,16 @@ def vmap(module, size, *args, **kwargs):
 
 def pmap(module, size, *args, **kwargs):
     return vectorize(jax.pmap, module, size, *args, **kwargs)
+
+
+def jit(module, *args, **kwargs):
+    """Set up the module for JIT.
+
+    Args:
+      module: an xnn module.
+
+    Returns:
+      jit_module: JIT'ed module.
+    """
+    forward, params, states = module
+    return ModuleTuple(jax.jit(forward, *args, **kwargs), params, states)

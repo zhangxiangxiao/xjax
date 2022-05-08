@@ -87,3 +87,16 @@ def vmap(evaluator, size, *args, **kwargs):
 
 def pmap(evaluator, size, *args, **kwargs):
     return vectorize(jax.pmap, evaluator, size, *args, **kwargs)
+
+
+def jit(evaluator, *args, **kwargs):
+    """Set up the evaluator for JIT.
+
+    Args:
+      evaluator: an xeval evaluator.
+
+    Returns:
+      jit_evaluator: JIT'ed evaluator.
+    """
+    evaluate, states = evaluator
+    return EvaluatorTuple(jax.jit(evaluate, *args, **kwargs), states)
