@@ -231,7 +231,7 @@ def Embed(*args):
         loss_outputs, loss_states = loss_forward(
             loss_params, loss_inputs, loss_states)
         states = (embed_states, net_states, loss_states)
-        return net_outputs, loss_outputs, states
+        return [embed_outputs, net_outputs], loss_outputs, states
     def backward(params, inputs, states):
         embed_params, net_params = params
         embed_inputs, net_targets = inputs
@@ -262,7 +262,7 @@ def Embed(*args):
                 jnp.concatenate(jtree.tree_leaves(embed_inputs)),
                 jnp.concatenate(jtree.tree_leaves(grads_embed_outputs)))
         grads = (grads_embed_params, grads_net_params)
-        return grads, net_outputs, loss_outputs, states
+        return grads, [embed_outputs, net_outputs], loss_outputs, states
     return ModelTuple(forward, backward, initial_params, initial_states)
 
 

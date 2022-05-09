@@ -183,7 +183,7 @@ class EmbedTest(absltest.TestCase):
         loss_forward, loss_params, loss_states = self.loss
         ref_loss_outputs, loss_states = loss_forward(
             loss_params, [ref_net_outputs, inputs[1]], loss_states)
-        self.assertTrue(jnp.allclose(ref_net_outputs, net_outputs))
+        self.assertTrue(jnp.allclose(ref_net_outputs, net_outputs[1]))
         self.assertTrue(jnp.allclose(ref_loss_outputs, loss_outputs))
 
     def test_backward(self):
@@ -194,7 +194,7 @@ class EmbedTest(absltest.TestCase):
             params, inputs, states)
         ref_net_outputs, ref_loss_outputs, _ = forward(
             params, inputs, states)
-        self.assertTrue(jnp.allclose(ref_net_outputs, net_outputs))
+        self.assertTrue(jnp.allclose(ref_net_outputs[1], net_outputs[1]))
         self.assertTrue(jnp.allclose(ref_loss_outputs, loss_outputs))
         net_forward, net_params, net_states = self.net
         loss_forward, loss_params, loss_states = self.loss
