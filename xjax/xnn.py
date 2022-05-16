@@ -410,6 +410,8 @@ Transpose = partial(SingleInput, jnp.transpose)
 Reshape = partial(SingleInput, jnp.reshape)
 Repeat = partial(SingleInput, jnp.repeat)
 Split = partial(SingleInput, jnp.split)
+# Others
+OneHot = partial(SingleInput, jnn.one_hot)
 
 def mul_const(inputs, const):
     """Multiply by a constant."""
@@ -474,6 +476,7 @@ Normal = partial(Random, jrand.normal)
 Uniform = partial(Random, jrand.uniform)
 Bernoulli = partial(Random, jrand.bernoulli)
 Exponential = partial(Random, jrand.exponential)
+Randint = partial(Random, jrand.randint)
 
 
 def RandomLike(func, rng=None, *args, **kwargs):
@@ -489,6 +492,7 @@ NormalLike = partial(RandomLike, jrand.normal)
 UniformLike = partial(RandomLike, jrand.uniform)
 BernoulliLike = partial(RandomLike, jrand.bernoulli)
 ExponentialLike = partial(RandomLike, jrand.exponential)
+RandintLike = partial(RandomLike, jrand.randint)
 
 
 def pack_states(states):

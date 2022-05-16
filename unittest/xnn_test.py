@@ -582,6 +582,24 @@ class SplitTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(inputs[:, 2:, :], outputs[1]))
 
 
+class OneHotTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.OneHot(num_classes=8, axis=0)
+
+    def test_forward(self):
+        inputs = jrand.randint(xrand.split(), shape=(4,), minval=0, maxval=8)
+        forward, params, states = self.module
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((8, 4), outputs.shape)
+        self.assertEqual(4, jnp.sum(outputs))
+
+    def test_vmap(self):
+        forward, params, states = xnn.vmap(self.module, 2)
+        inputs = jrand.randint(xrand.split(), shape=(2, 4), minval=0, maxval=8)
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue((2, 8, 4), outputs.shape)
+
+
 class MulConstTest(absltest.TestCase):
     def setUp(self):
         self.module = xnn.MulConst(const=3.2)
@@ -662,7 +680,7 @@ class ArithmeticMultiInputTest(absltest.TestCase):
 class MatMulTest(absltest.TestCase):
     def setUp(self):
         self.module = xnn.MatMul()
-        
+
     def test_forward(self):
         matrix1 = jrand.normal(xrand.split(), shape=(8, 4))
         matrix2 = jrand.normal(xrand.split(), shape=(4, 2))
@@ -741,18 +759,21 @@ class RandomTest(absltest.TestCase):
             module_v_rng, shape=(8, 4), *args, **kwargs), 2)
         outputs, states = forward_v(params_v, None, states_v)
         self.assertEqual((2, 8, 4), outputs.shape)
-        
+
     def test_normal(self):
         return self.template(xnn.Normal, jrand.normal)
-        
+
     def test_uniform(self):
         return self.template(xnn.Uniform, jrand.uniform)
-        
+
     def test_bernoulli(self):
         return self.template(xnn.Bernoulli, jrand.bernoulli)
 
     def test_exponential(self):
         return self.template(xnn.Exponential, jrand.exponential)
+
+    def test_randint(self):
+        return self.template(xnn.Randint, jrand.randint, minval=0, maxval=8)
 
 
 class RandomLikeTest(absltest.TestCase):
@@ -784,6 +805,9 @@ class RandomLikeTest(absltest.TestCase):
 
     def test_exponential(self):
         return self.template(xnn.ExponentialLike, jrand.exponential)
+
+    def test_randint(self):
+        return self.template(xnn.RandintLike, jrand.randint, minval=0, maxval=8)
 
 
 class SequentialTest(absltest.TestCase):
