@@ -423,6 +423,11 @@ def add_const(inputs, const):
     return inputs + const
 AddConst = partial(SingleInput, add_const)
 
+def logcosh(inputs):
+    # log(cosh(z)) = log((exp(z)+exp(-z))/2) = log(exp(z)+exp(-z))-log(2)
+    return jnp.logaddexp(inputs, -inputs) - math.log(2)
+LogCosh = partial(SingleInput, logcosh)
+
 
 def MultiInput(func, *args, **kwargs):
     """
@@ -444,11 +449,6 @@ LogAddExp = partial(MultiInput, jnp.logaddexp)
 # Linear algebra functions
 MatMul = partial(MultiInput, jnp.matmul)
 Dot = partial(MultiInput, jnp.dot)
-
-def logcosh(x, y):
-    # log(cosh(z)) = log((exp(z)+exp(-z))/2) = log(exp(z)+exp(-z))-log(2)
-    return jnp.logaddexp(x - y, y - x) - math.log(2)
-LogCosh = partial(MultiInput, logcosh)
 
 
 def ListInput(func, *args, **kwargs):

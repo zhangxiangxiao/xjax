@@ -432,6 +432,9 @@ class TransferSingleInputTest(absltest.TestCase):
     def test_normalize(self):
         return self.template(xnn.Standardize, jnn.standardize)
 
+    def test_logcosh(self):
+        self.template(xnn.LogCosh, xnn.logcosh)
+
 
 class ReductionSingleInputTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
@@ -672,9 +675,6 @@ class ArithmeticMultiInputTest(absltest.TestCase):
 
     def test_logaddexp(self):
         self.template(xnn.LogAddExp, jnp.logaddexp)
-
-    def test_logcosh(self):
-        self.template(xnn.LogCosh, xnn.logcosh)
 
 
 class MatMulTest(absltest.TestCase):
