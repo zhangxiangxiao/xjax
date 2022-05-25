@@ -424,9 +424,40 @@ def add_const(inputs, const):
 AddConst = partial(SingleInput, add_const)
 
 def logcosh(inputs):
-    # log(cosh(z)) = log((exp(z)+exp(-z))/2) = log(exp(z)+exp(-z))-log(2)
     return jnp.logaddexp(inputs, -inputs) - math.log(2)
 LogCosh = partial(SingleInput, logcosh)
+
+
+def sigmax(inputs, axis=-1):
+    """Calculate the sigmax probabilities.
+    Pr[i] = (sigmoid(y_i)+sum_j[sigmoid(-y_j)]/(n-1)-sigmoid(-y_i)/(n-1))/n.
+    """
+    if axis == None:
+        n = jnp.size(inputs)
+    elif isinstance(axis, (tuple, list)):
+        n = math.prod(inputs.shape[i] for i in axis)
+    else:
+        n = inputs.shape[axis]
+    pos = jnn.sigmoid(inputs)
+    neg = jnn.sigmoid(-inputs)
+    neg_sum = jnp.sum(neg, axis=axis, keepdims=True)
+    neg_term = (neg_sum - neg) / (n-1)
+    return (pos + neg_term) / n
+Sigmax = partial(SingleInput, sigmax)
+
+def log_sigmax(inputs, axis=-1):
+    if axis == None:
+        n = jnp.size(inputs)
+    elif isinstance(axis, (tuple, list)):
+        n = math.prod(inputs.shape[i] for i in axis)
+    else:
+        n = inputs.shape[axis]
+    log_pos = jnn.log_sigmoid(inputs)
+    neg = jnn.sigmoid(-inputs)
+    neg_sum = jnp.sum(neg, axis=axis, keepdims=True)
+    log_neg_term = jnp.log(neg_sum - neg) - math.log(n-1)
+    return jnp.logaddexp(log_pos, log_neg_term) - math.log(n)
+LogSigmax = partial(SingleInput, log_sigmax)
 
 
 def MultiInput(func, *args, **kwargs):

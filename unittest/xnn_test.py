@@ -435,6 +435,12 @@ class TransferSingleInputTest(absltest.TestCase):
     def test_logcosh(self):
         self.template(xnn.LogCosh, xnn.logcosh)
 
+    def test_sigmax(self):
+        self.template(xnn.Sigmax, xnn.sigmax)
+
+    def test_log_sigmax(self):
+        self.template(xnn.LogSigmax, xnn.log_sigmax)
+
 
 class ReductionSingleInputTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
