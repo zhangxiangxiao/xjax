@@ -438,11 +438,9 @@ def sigmax(inputs, axis=-1):
         n = math.prod(inputs.shape[i] for i in axis)
     else:
         n = inputs.shape[axis]
-    pos = jnn.sigmoid(inputs)
-    neg = jnn.sigmoid(-inputs)
-    neg_sum = jnp.sum(neg, axis=axis, keepdims=True)
-    neg_term = (neg_sum - neg) / (n-1)
-    return (pos + neg_term) / n
+    plus_term = jnn.softmax(jnn.softplus(inputs), axis=axis)
+    sig_term = jnn.softmax(jnn.log_sigmoid(inputs), axis=axis)
+    return (plus_term + sig_term) / 2
 Sigmax = partial(SingleInput, sigmax)
 
 def log_sigmax(inputs, axis=-1):
@@ -452,11 +450,9 @@ def log_sigmax(inputs, axis=-1):
         n = math.prod(inputs.shape[i] for i in axis)
     else:
         n = inputs.shape[axis]
-    log_pos = jnn.log_sigmoid(inputs)
-    neg = jnn.sigmoid(-inputs)
-    neg_sum = jnp.sum(neg, axis=axis, keepdims=True)
-    log_neg_term = jnp.log(neg_sum - neg) - math.log(n-1)
-    return jnp.logaddexp(log_pos, log_neg_term) - math.log(n)
+    plus_term = jnn.log_softmax(jnn.softplus(inputs), axis=axis)
+    sig_term = jnn.log_softmax(jnn.log_sigmoid(inputs), axis=axis)
+    return jnp.logaddexp(plus_term, sig_term) - math.log(2)
 LogSigmax = partial(SingleInput, log_sigmax)
 
 
