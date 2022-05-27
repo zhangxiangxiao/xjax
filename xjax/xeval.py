@@ -11,8 +11,9 @@ from collections import namedtuple
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtree
 from xjax import xnn
-from xjax.xnn import vectorize_states, postprocess_states
+
 
 EvaluatorTuple = namedtuple('Evaluator', ['evaluate', 'states'])
 
@@ -60,7 +61,7 @@ def CategoricalEval():
     return EvaluatorTuple(evaluate, None)
 
 
-def vectorize(map_func, evaluator, size, *args, **kwargs):
+def vectorize(map_func, evaluator, *args, **kwargs):
     """Vectorize the evaluator.
 
     Args:
@@ -72,21 +73,22 @@ def vectorize(map_func, evaluator, size, *args, **kwargs):
       evaluate: the vectorized evaluate function.
       states: vectorized states.
     """
-    eval_evaluate, eval_states = evaluator
-    initial_states = vectorize_states(eval_states, size)
+    eval_evaluate, initial_states = evaluator
     # Map over inputs and states
     evaluate_v = map_func(eval_evaluate, *args, **kwargs)
     def evaluate(inputs, net_outputs, states):
+        batch = jtree.tree_leaves(inputs)[0].shape[0]
+        states = xnn.vectorize_states(states, batch)
         outputs, states = evaluate_v(inputs, net_outputs, states)
-        new_states = postprocess_states(states, size)
-        return outputs, new_states
+        states = xnn.aggregate_states(states)
+        return outputs, states
     return EvaluatorTuple(evaluate, initial_states)
 
-def vmap(evaluator, size, *args, **kwargs):
-    return vectorize(jax.vmap, evaluator, size, *args, **kwargs)
+def vmap(evaluator, *args, **kwargs):
+    return vectorize(jax.vmap, evaluator, *args, **kwargs)
 
-def pmap(evaluator, size, *args, **kwargs):
-    return vectorize(jax.pmap, evaluator, size, *args, **kwargs)
+def pmap(evaluator, *args, **kwargs):
+    return vectorize(jax.pmap, evaluator, *args, **kwargs)
 
 
 def jit(evaluator, *args, **kwargs):

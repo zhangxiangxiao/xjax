@@ -36,8 +36,8 @@ class ModelTest(absltest.TestCase):
         loss_inputs = [net_outputs, net_targets]
         ref_loss_outputs, loss_states = loss_forward(
             loss_params, loss_inputs, loss_states)
-        self.assertTrue(jnp.allclose(ref_loss_outputs, loss_outputs))        
-        
+        self.assertTrue(jnp.allclose(ref_loss_outputs, loss_outputs))
+
     def test_backward(self):
         forward, backward, params, states = self.model
         inputs = self.inputs
@@ -56,7 +56,7 @@ class ModelTest(absltest.TestCase):
                      ref_grads, grads)
 
     def test_vmap(self):
-        forward, backward, params, states = xmod.vmap(self.model, 2)
+        forward, backward, params, states = xmod.vmap(self.model)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
                   jrand.normal(xrand.split(), shape=(2, 2))]
         net_outputs, loss_outputs, states = forward(params, inputs, states)
@@ -72,7 +72,6 @@ class GANTest(absltest.TestCase):
     def setUp(self):
         # Generator is a 2-layer MLP.
         self.gen = xnn.Sequential(
-            xnn.Normal(shape=(2,)),
             xnn.Linear(2, 4), xnn.Dropout(p=0.5), xnn.ReLU(),
             xnn.Linear(4, 8))
         # Discriminator is a linear model.
@@ -85,7 +84,8 @@ class GANTest(absltest.TestCase):
         # Build the GAN model
         self.model = xmod.GAN(
             self.gen, self.disc, self.gen_loss, self.disc_loss)
-        self.inputs = jrand.normal(xrand.split(), shape=(8,))
+        self.inputs = [jrand.normal(xrand.split(), shape=(8,)),
+                       jrand.normal(xrand.split(), shape=(2,))]
 
     def test_forward(self):
         forward, _, params, states = self.model
@@ -95,11 +95,11 @@ class GANTest(absltest.TestCase):
              params, inputs, states)
         gen_forward, gen_params, gen_states = self.gen
         ref_gen_outputs, gen_states = gen_forward(
-            gen_params, None, gen_states)
+            gen_params, inputs[1], gen_states)
         self.assertTrue(jnp.allclose(ref_gen_outputs, gen_outputs))
         disc_forward, disc_params, disc_states = self.disc
         ref_real_outputs, disc_states = disc_forward(
-            disc_params, inputs, disc_states)
+            disc_params, inputs[0], disc_states)
         self.assertTrue(jnp.allclose(ref_real_outputs, real_outputs))
         ref_fake_outputs, disc_states = disc_forward(
             disc_params, gen_outputs, disc_states)
@@ -143,8 +143,9 @@ class GANTest(absltest.TestCase):
                      ref_disc_grads, disc_grads)
 
     def test_vmap(self):
-        forward, backward, params, states = xmod.vmap(self.model, 2)
-        inputs = jrand.normal(xrand.split(), shape=(2,8))
+        forward, backward, params, states = xmod.vmap(self.model)
+        inputs = [jrand.normal(xrand.split(), shape=(2,8)),
+                  jrand.normal(xrand.split(), shape=(2,2))]
         ([gen_outputs, [real_outputs, fake_outputs]],
          [gen_loss_outputs, disc_loss_outputs], states) = forward(
              params, inputs, states)

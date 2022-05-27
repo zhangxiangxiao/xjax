@@ -138,9 +138,9 @@ def GAN(gen, disc, gen_loss, disc_loss):
         gen_params, disc_params = params
         gen_states, disc_states, gen_loss_states, disc_loss_states = states
         gen_outputs, gen_states = gen_forward(
-            gen_params, None, gen_states)
+            gen_params, inputs[1], gen_states)
         real_outputs, disc_states = disc_forward(
-            disc_params, inputs, disc_states)
+            disc_params, inputs[0], disc_states)
         fake_outputs, disc_states = disc_forward(
             disc_params, gen_outputs, disc_states)
         disc_outputs = [real_outputs, fake_outputs]
@@ -158,9 +158,9 @@ def GAN(gen, disc, gen_loss, disc_loss):
         gen_loss_states, disc_loss_states = states[2], states[3]
         # Forward propagate and build backward graph
         gen_vjpf, gen_outputs, gen_states = vjp(
-            gen_forward, gen_params, None, gen_states)
+            gen_forward, gen_params, inputs[1], gen_states)
         disc_vjpf_real, real_outputs, disc_states = vjp(
-            disc_forward, disc_params, inputs, disc_states)
+            disc_forward, disc_params, inputs[0], disc_states)
         disc_vjpf_fake, fake_outputs, disc_states = vjp_full(
             disc_forward, disc_params, gen_outputs, disc_states)
         disc_outputs = [real_outputs, fake_outputs]
@@ -266,21 +266,20 @@ def Embed(*args):
     return ModelTuple(forward, backward, initial_params, initial_states)
 
 
-def vectorize_states(states, size):
+def vectorize_states(states, batch):
     # Vectorize module states individually.
-    return tuple(xnn.vectorize_states(s, size) for s in states)
+    return tuple(xnn.vectorize_states(s, batch) for s in states)
 
-def postprocess_states(states, size):
-    # Process module states individually.
-    return tuple(xnn.postprocess_states(s, size) for s in states)
+def aggregate_states(states):
+    # Aggregate module states individually.
+    return tuple(xnn.aggregate_states(s) for s in states)
 
-def vectorize(map_func, model, size, *args, **kwargs):
+def vectorize(map_func, model, *args, **kwargs):
     """Vectorize the model.
 
     Args:
       map_func: jax.vmap or jax.pmap.
       model: the model to be vectorized.
-      size: the batch size.
 
     Returns:
       forward: vectorized forward function.
@@ -288,28 +287,31 @@ def vectorize(map_func, model, size, *args, **kwargs):
       params: model parameters.
       states: vectorized states.
     """
-    model_forward, model_backward, initial_params, model_states = model
-    initial_states = vectorize_states(model_states, size)
+    model_forward, model_backward, initial_params, initial_states = model
     # Map over inputs and states, but not parameters.
     forward_v = map_func(model_forward, in_axes=(None, 0, 0), *args, **kwargs)
     def forward(params, inputs, states):
+        batch = jtree.tree_leaves(inputs)[0].shape[0]
+        states = vectorize_states(states, batch)
         net_outputs, loss_outputs, states = forward_v(params, inputs, states)
-        new_states = postprocess_states(states, size)
+        states = aggregate_states(states)
         return net_outputs, loss_outputs, states
     # Map over inputs and states, but not parameters.
     backward_v = map_func(model_backward, in_axes=(None, 0, 0), *args, **kwargs)
     def backward(params, inputs, states):
+        batch = jtree.tree_leaves(inputs)[0].shape[0]
+        states = vectorize_states(states, batch)
         grads, net_outputs, loss_outputs, states = backward_v(
             params, inputs, states)
-        new_states = postprocess_states(states, size)
+        states = aggregate_states(states)
         return grads, net_outputs, loss_outputs, states
     return ModelTuple(forward, backward, initial_params, initial_states)
 
-def vmap(model, size, *args, **kwargs):
-    return vectorize(jax.vmap, model, size, *args, **kwargs)
+def vmap(model, *args, **kwargs):
+    return vectorize(jax.vmap, model, *args, **kwargs)
 
-def pmap(model, size, *args, **kwargs):
-    return vectorize(jax.pmap, model, size, *args, **kwargs)
+def pmap(model, *args, **kwargs):
+    return vectorize(jax.pmap, model, *args, **kwargs)
 
 
 def jit(model, *args, **kwargs):

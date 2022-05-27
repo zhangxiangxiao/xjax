@@ -15,10 +15,11 @@ You should use the returned new states for the next call to forward.
 The states of a module consistitude a dict in which the keys control how to
 split and aggregate states when vectorizing a module using xnn.vmap or xnn.pmap.
 `states = {'rng': rng_states, 'mean': mean_states, k1: v1, k2: v2, ...}`
-`rng_states` will be split to batch using jax.random.split before `forward`.
+`rng_states` will be split to batch using jax.random.split before `forward` and
+aggregated after by selecting the rng of the first sample.
 `mean_states` will be copied to batch before `forward` and averaged after.
-States of all other keys will be copied before `forward` without any
-postprocessing after.
+States of all other keys will be copied before `forward` and aggregated by
+selecting the state outputs of the first sample.
 """
 
 from __future__ import absolute_import
@@ -360,16 +361,6 @@ def Unpack():
     return ModuleTuple(forward, None, None)
 
 
-def ZeroInput(func, *args, **kwargs):
-    def forward(params, inputs, states):
-        return func(*args, **kwargs), states
-    return ModuleTuple(forward, None, None)
-# Construction functions
-Zeros = partial(ZeroInput, jnp.zeros)
-Ones = partial(ZeroInput, jnp.ones)
-Full = partial(ZeroInput, jnp.full)
-
-
 def SingleInput(func, *args, **kwargs):
     """Layer that feed func with inputs.
     Used for modules that do not have params and states. Hyper-parameters are
@@ -490,20 +481,6 @@ def ListInput(func, *args, **kwargs):
     return ModuleTuple(forward, None, None)
 Concatenate = partial(ListInput, jnp.concatenate)
 Stack = partial(ListInput, jnp.stack)
-
-
-def Random(func, rng=None, *args, **kwargs):
-    """Layer that generate random numbers."""
-    rng = rng if rng is not None else xrand.split()
-    def forward(params, inputs, states):
-        func_rng, new_rng = jrand.split(states['rng'])
-        return func(func_rng, *args, **kwargs), {'rng': new_rng}
-    return ModuleTuple(forward, None, {'rng': rng})
-Normal = partial(Random, jrand.normal)
-Uniform = partial(Random, jrand.uniform)
-Bernoulli = partial(Random, jrand.bernoulli)
-Exponential = partial(Random, jrand.exponential)
-Randint = partial(Random, jrand.randint)
 
 
 def RandomLike(func, rng=None, *args, **kwargs):
@@ -628,76 +605,83 @@ def SharedParallel(module):
     return ModuleTuple(forward, initial_params, initial_states)
 
 
-def copy_vectorize(states, size):
+def copy_vectorize(states, batch):
     """vectorize states before calling forward."""
     return jax.tree_map(
-        lambda x: jnp.repeat(jnp.expand_dims(x, 0), size, axis=0), states)
+        lambda x: jnp.repeat(jnp.expand_dims(x, 0), batch, axis=0), states)
 
-def rng_vectorize(states, size):
+def rng_vectorize(states, batch):
     """vectorize rng states before calling forward."""
     def leaf_vectorize(leaf):
         new_leaf = jnp.apply_along_axis(
-            lambda rng: jnp.array(jrand.split(rng, size)), -1, leaf)
+            lambda rng: jnp.array(jrand.split(rng, batch)), -1, leaf)
         return jnp.swapaxes(new_leaf, -2, 0)
     new_states = jax.tree_map(leaf_vectorize, states)
     return new_states
 
-def vectorize_states(states, size):
+def vectorize_states(states, batch):
     new_states = None
     if states is not None:
         new_states = {}
         for key in states:
             if key == 'rng':
-                new_states[key] = rng_vectorize(states[key], size)
+                new_states[key] = rng_vectorize(states[key], batch)
             else:
-                new_states[key] = copy_vectorize(states[key], size)
+                new_states[key] = copy_vectorize(states[key], batch)
     return new_states
 
-def mean_postprocess(states, size):
-    """vectorize sum states after calling forward."""
-    def leaf_vectorize(leaf):
-        return jax.repeat(jax.mean(leaf, axis=0, keepdims=True), size, axis=0)
-    new_states = jax.tree_map(leaf_vectorize, states)
+def copy_aggregate(states):
+    """Aggregate the copied states."""
+    # Simply choose the first rng.
+    return jax.tree_map(lambda x: x[0], states)
 
-def postprocess_states(states, size):
+def mean_aggregate(states):
+    """aggregate states after calling forward."""
+    def leaf_vectorize(leaf):
+        return jax.mean(leaf, axis=0, keepdims=False)
+    return jax.tree_map(leaf_vectorize, states)
+
+def aggregate_states(states):
     new_states = None
     if states is not None:
         new_states = {}
         for key in states:
             if key == 'mean':
-                new_states[key] = mean_postprocess(states[key], size)
+                new_states[key] = mean_aggregate(states[key])
             else:
-                new_states[key] = states[key]
+                new_states[key] = copy_aggregate(states[key])
     return new_states
 
-def vectorize(map_func, module, size, *args, **kwargs):
+
+def vectorize(map_func, module, *args, **kwargs):
     """Vectorize the module.
 
     Args:
       map_func: jax.vmap or jax.pmap.
       module: the module to be vectorized.
-      size: the batch size.
 
     Returns:
       forward: the vectorized forward function.
       params: module parameters.
       states: vectorized states according to its dictionary key.
     """
-    module_forward, initial_params, module_states = module
-    initial_states = vectorize_states(module_states, size)
+    module_forward, initial_params, initial_states = module
     # Map over inputs and states, but not parameters.
     forward_v = map_func(module_forward, in_axes=(None, 0, 0), *args, **kwargs)
     def forward(params, inputs, states):
+        batch = jtree.tree_leaves(inputs)[0].shape[0]
+        states = vectorize_states(states, batch)
         outputs, states = forward_v(params, inputs, states)
-        new_states = postprocess_states(states, size)
-        return outputs, new_states
+        states = aggregate_states(states)
+        return outputs, states
     return ModuleTuple(forward, initial_params, initial_states)
 
-def vmap(module, size, *args, **kwargs):
-    return vectorize(jax.vmap, module, size, *args, **kwargs)
 
-def pmap(module, size, *args, **kwargs):
-    return vectorize(jax.pmap, module, size, *args, **kwargs)
+def vmap(module, *args, **kwargs):
+    return vectorize(jax.vmap, module, *args, **kwargs)
+
+def pmap(module, *args, **kwargs):
+    return vectorize(jax.pmap, module, *args, **kwargs)
 
 
 def jit(module, *args, **kwargs):

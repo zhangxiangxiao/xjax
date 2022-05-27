@@ -10,6 +10,7 @@ import jax.random as jrand
 from xjax import xnn
 from xjax import xrand
 
+
 class EvaluatorTest(absltest.TestCase):
     def setUp(self):
         # The module is a square loss
@@ -27,7 +28,7 @@ class EvaluatorTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(module_outputs, outputs))
 
     def test_vmap(self):
-        evaluate, states = xeval.vmap(self.evaluator, 2)
+        evaluate, states = xeval.vmap(self.evaluator)
         inputs = jrand.normal(xrand.split(), shape=(2, 8))
         net_outputs = jrand.normal(xrand.split(), shape=(2, 8))
         outputs, states = evaluate(inputs, net_outputs, states)
@@ -47,7 +48,7 @@ class BinaryEvalTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(jnp.array(0.5), outputs))
 
     def test_vmap(self):
-        evaluate, states = xeval.vmap(self.evaluator, 2)
+        evaluate, states = xeval.vmap(self.evaluator)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
                   jnp.array([[-1, 1, 1, -1], [1, -1, 1, -1]])]
         net_outputs = jnp.array([[-0.5, -0.1, 0.2, 1.3],
@@ -71,7 +72,7 @@ class ClassEvalTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(reference, outputs))
 
     def test_vmap(self):
-        evaluate, states = xeval.vmap(self.evaluator, 2)
+        evaluate, states = xeval.vmap(self.evaluator)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
                   jrand.randint(xrand.split(), shape=(2,), minval=0, maxval=4)]
         net_outputs = jrand.normal(xrand.split(), shape=(2, 4))
@@ -96,7 +97,7 @@ class CategoricalEvalTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(reference, outputs))
 
     def test_vmap(self):
-        evaluate, states = self.evaluator
+        evaluate, states = xeval.vmap(self.evaluator)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8,)),
                   jrand.normal(xrand.split(), shape=(2, 4))]
         net_outputs = jrand.normal(xrand.split(), shape=(2, 4))
