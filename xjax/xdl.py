@@ -72,19 +72,19 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
                 params, inputs, model_states)
             eval_outputs, eval_states = evaluate(
                 inputs, net_outputs, eval_states)
+            loss_outputs = jax.tree_map(lambda x: jnp.mean(x), loss_outputs)
             if total_loss_outputs is None:
-                total_loss_outputs = jax.tree_map(
-                    lambda x: jnp.mean(x), loss_outputs)
+                total_loss_outputs = loss_outputs
             else:
                 total_loss_outputs = jax.tree_map(
-                    lambda x, y: step/(step+1)*x + 1/(step+1)*jnp.mean(y),
+                    lambda x, y: step/(step+1)*x + 1/(step+1)*y,
                     total_loss_outputs, loss_outputs)
+            eval_outputs = jax.tree_map(lambda x: jnp.mean(x), eval_outputs)
             if total_eval_outputs is None and eval_outputs is not None:
-                total_eval_outputs = jax.tree_map(
-                    lambda x: jnp.mean(x), eval_outputs)
+                total_eval_outputs = eval_outputs
             else:
                 total_eval_outputs = jax.tree_map(
-                    lambda x, y: step/(step+1)*x + 1/(step+1)*jnp.mean(y),
+                    lambda x, y: step/(step+1)*x + 1/(step+1)*y,
                     total_eval_outputs, eval_outputs)
             params, opt_states = update(params, grads, opt_states)
             if callback is not None:
@@ -105,19 +105,19 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
                 params, inputs, model_states)
             eval_outputs, eval_states = evaluate(
                 inputs, net_outputs, eval_states)
+            loss_outputs = jax.tree_map(lambda x: jnp.mean(x), loss_outputs)
             if total_loss_outputs is None:
-                total_loss_outputs = jax.tree_map(
-                    lambda x: jnp.mean(x), loss_outputs)
+                total_loss_outputs = loss_outputs
             else:
                 total_loss_outputs = jax.tree_map(
-                    lambda x, y: step/(step+1)*x + 1/(step+1)*jnp.mean(y),
+                    lambda x, y: step/(step+1)*x + 1/(step+1)*y,
                     total_loss_outputs, loss_outputs)
+            eval_outputs = jax.tree_map(lambda x: jnp.mean(x), eval_outputs)
             if total_eval_outputs is None and eval_outputs is not None:
-                total_eval_outputs = jax.tree_map(
-                    lambda x: jnp.mean(x), eval_outputs)
+                total_eval_outputs = eval_outputs
             else:
                 total_eval_outputs = jax.tree_map(
-                    lambda x, y: step/(step+1)*x + 1/(step+1)*jnp.mean(y),
+                    lambda x, y: step/(step+1)*x + 1/(step+1)*y,
                     total_eval_outputs, eval_outputs)
             if callback is not None:
                 callback(step, inputs, net_outputs, loss_outputs, eval_outputs,
