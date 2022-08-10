@@ -315,36 +315,6 @@ def pmap(model, *args, **kwargs):
     """Map over inputs and states, but not parameters."""
     return vectorize(jax.pmap, model, *args, **kwargs)
 
-def shard_vectorize(map_func, models, *args, **kwargs):
-    """Shard vectorize the mode.
-
-    Args:
-      map_func: jax.vmap or jax.pmap.
-      models: a list of models to be vectorized. Only model[0]'s forward and
-        backward functions are used.
-
-    Returns:
-      forward: vectorized forward function.
-      backward: vectorized backward function.
-      params: model parameters.
-      states: vectorized states.
-    """
-    model_forward, model_backward = model[0][0], model[0][1]
-    initial_params = jnp.stack([model[i][2] for i in len(models)])
-    initial_states = jnp.stack([model[i][3] for i in len(models)])
-    # Map over parameters and states, but not inputs.
-    forward = map_func(model_forward, in_axes=(0, None, 0), *args, **kwargs)
-    backward = map_func(model_backward, in_axes=(0, None, 0), *args, **kwargs)
-    return ModelTuple(forward, backward, initial_params, initial_states)
-
-def svmap(models, *args, **kwargs):
-    """Sharded vmap. Map over parameters and states, but not inputs."""
-    return shard_vectorize(jax.vmap, models, *args, **kwargs)
-
-def spmap(models, *args, **kwargs):
-    """Sharded pmap. Map over parameters and states, but not inputs."""
-    return shard_vectorize(jax.pmap, models, *args, **kwargs)
-
 def jit(model, *args, **kwargs):
     """Set up the model for JIT.
 
