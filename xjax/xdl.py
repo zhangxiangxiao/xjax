@@ -1,8 +1,5 @@
 """
-Deep learning tools library for JAX.
-
-The tools in this module is based on Learner, which contains the code for
-training, testing, evaluation, and serialization of a deep learning model.
+Deep learning tools library for XJAX.
 """
 
 from __future__ import absolute_import
@@ -15,56 +12,39 @@ import jax.numpy as jnp
 import numpy as np
 
 
-LearnerTuple = namedtuple('LearnerTuple', ['train', 'test', 'states'])
-LearnerStatesTuple = namedtuple(
-    'LearnerStatesTuple', ['params', '_1', '_2', '_3', '_4'], rename=True)
+TrainerTuple = namedtuple('TrainerTuple', ['train', 'states'])
+TrainerStatesTuple = namedtuple(
+    'TrainerStatesTuple', ['params', 'optimizer', 'model', 'evaluator'])
 
-
-def Learner(optimizer, train_model, test_model=None, evaluator=None):
-    """Training and testing tool for xjax models.
+def Trainer(optimizer, model, evaluator=None):
+    """Training tool for xjax models.
 
     Args:
       optimizer: an optimizer that was initialized from train_model's params.
-      train_model: a model used for training.
-      test_model: a model used for testing. It will use train_model's params.
-        This is useful if the `forward` function of the training model is
-        different at testing time, such as when using dropout. `train_model` is
-        used if set to `None`.
-      evaluator: an (evaluate, states) tuple which is used to provide evaluation
-        in addition to the loss_outputs from models. The `evaluate` function is
-        defined as `outputs, states = evaluate(inputs, net_outputs, states)`.
+      model: a model used for training.
+      evaluator: an optional evaluator which is used to provide evaluation.
 
 
     Returns:
       train: a function that can be executed to train the model. The signature
-        is `loss_outputs, eval_outputs, states = train(data, states, callback=None)`.
+        is `loss_outputs, eval_outputs, states = train(data, states, callback)`.
         `data` is a Python iterator that goes through sample inputs. `callback`
-        is a function to be called at every optimization update, defined as
-        `callback(step, params, grads, inputs, net_outputs, loss_outputs,
-        eval_outputs, total_loss_outputs, total_eval_outputs)`.
-      test: a function that can be called to test the model. The signature is
-        `loss_outputs, eval_outputs, states = test(data, states, callback=None)`.
-        `data` is a Python iterator that goes through sample inputs. `callback`
-        is a function to be called at every optimization update, defined as
-        `callback(step, inputs, net_outputs, loss_outputs, eval_outputs,
-        total_loss_outputs, total_eval_outputs)`.
-      states: the initial states of learner that contains model parameters
+        is an optional function to be called at every optimization update,
+        defined as `callback(step, states, inputs, net_outputs, loss_outputs,
+        eval_outputs)`. `loss_outputs` and `eval_outputs` both are tuples of
+        '(current_values, total_values)'.
+      states: the initial states of trainer that contains model parameters
         and other states. `states[0]` is always the model parameter.
     """
-    if test_model is None:
-        test_model = train_model
     if evaluator is None:
         evaluator = (lambda inputs, net_outputs, states: (None, None), None)
     update = optimizer[0]
-    backward = train_model[1]
-    forward = test_model[0]
+    forward, backward = model[0], model[1]
     evaluate = evaluator[0]
-    initial_states = LearnerStatesTuple(
-        train_model[2], optimizer[1], train_model[3], test_model[3],
-        evaluator[1])
+    initial_states = TrainerStatesTuple(
+        model[2], optimizer[1], model[3], evaluator[1])
     def train(data, states, callback=None):
-        params = states[0]
-        opt_states, model_states, eval_states = states[1], states[2], states[4]
+        params, opt_states, model_states, eval_states = states
         total_loss_outputs, total_eval_outputs = None, None
         step = 0
         for inputs in data:
@@ -88,16 +68,47 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
                     total_eval_outputs, eval_outputs)
             params, opt_states = update(params, grads, opt_states)
             if callback is not None:
-                callback(opt_states[0] - 1, params, grads, inputs, net_outputs,
-                         loss_outputs, eval_outputs, total_loss_outputs,
-                         total_eval_outputs)
+                callback(opt_states[0] - 1, states, inputs, net_outputs,
+                         (loss_outputs, total_loss_outputs),
+                         (eval_outputs, total_eval_outputs))
             step = step + 1
-        states = LearnerStatesTuple(
-            params, opt_states, model_states, states[3], eval_states)
+        states = TrainerStatesTuple(
+            params, opt_states, model_states, eval_states)
         return total_loss_outputs, total_eval_outputs, states
+    return TrainerTuple(train, initial_states)
+
+
+TesterTuple = namedtuple('TesterTuple', ['test', 'states'])
+TesterStatesTuple = namedtuple(
+    'TesterStatesTuple', ['params', 'model', 'evaluator'])
+
+def Tester(model, evaluator=None):
+    """Testing tool for xjax models.
+
+    Args:
+      model: a model used for testing.
+      evaluator: an optional evaluator which is used to provide evaluation.
+
+
+    Returns:
+      test: a function that can be executed to test the model. The signature
+        is `loss_outputs, eval_outputs, states = test(data, states, callback)`.
+        `data` is a Python iterator that goes through sample inputs. `callback`
+        is an optional function to be called at every optimization update,
+        defined as `callback(step, states, inputs, net_outputs, loss_outputs,
+        eval_outputs)`. `loss_outputs` and `eval_outputs` both are tuples of
+        '(current_values, total_values)'.
+        defined as `callback(step, states, inputs, outputs, losses, totals)`. 
+      states: the initial states of tester that contains model parameters
+        and other states. `states[0]` is always the model parameter.
+    """
+    if evaluator is None:
+        evaluator = (lambda inputs, net_outputs, states: (None, None), None)
+    forward = model[0]
+    evaluate = evaluator[0]
+    initial_states = TesterStatesTuple(model[2], model[3], evaluator[1])
     def test(data, states, callback=None):
-        params = states[0]
-        opt_states, model_states, eval_states = states[1], states[3], states[4]
+        params, model_states, eval_states = states
         total_loss_outputs, total_eval_outputs = None, None
         step = 0
         for inputs in data:
@@ -120,22 +131,26 @@ def Learner(optimizer, train_model, test_model=None, evaluator=None):
                     lambda x, y: step/(step+1)*x + 1/(step+1)*y,
                     total_eval_outputs, eval_outputs)
             if callback is not None:
-                callback(step, inputs, net_outputs, loss_outputs, eval_outputs,
-                         total_loss_outputs, total_eval_outputs)
+                callback(step, inputs, states, net_outputs,
+                         (loss_outputs, total_loss_outputs),
+                         (eval_outputs, total_eval_outputs))
             step = step + 1
-        states = LearnerStatesTuple(
-            params, opt_states, states[2], model_states, eval_states)
+        states = TesterStatesTuple(params, model_states, eval_states)
         return total_loss_outputs, total_eval_outputs, states
-    return LearnerTuple(train, test, initial_states)
+    return TesterTuple(test, initial_states)
 
 
 def dump(states, fd):
     """Serialize states to file."""
+    states = jax.tree_map(
+        lambda x: np.array(x) if isinstance(x, jnp.ndarray) else x, states)
     return pickle.dump(states, fd)
 
 
 def dumps(states):
     """Serialize states to bytes."""
+    states = jax.tree_map(
+        lambda x: np.array(x) if isinstance(x, jnp.ndarray) else x, states)
     return pickle.dumps(states)
 
 

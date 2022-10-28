@@ -14,7 +14,7 @@ from xjax import xmod
 from xjax import xeval
 from xjax import xopt
 
-class LearnerTest(absltest.TestCase):
+class TrainerTesterTest(absltest.TestCase):
     def setUp(self):
         # Network is a 2-layer MLP.
         def net(mode='train'):
@@ -34,14 +34,12 @@ class LearnerTest(absltest.TestCase):
         self.evaluator = xeval.Evaluator(
             xnn.Sequential(xnn.Subtract(), xnn.Abs(), xnn.Sum()))
 
-    def test_train(self):
-        # Create learner.
+    def test_trainer(self):
+        # Create trainer.
         optimizer = self.optimizer
-        train_model = self.train_model
-        test_model = self.test_model
+        model = self.train_model
         evaluator = self.evaluator
-        train, _, states = xdl.Learner(
-            optimizer, train_model, test_model, evaluator)
+        train, states = xdl.Trainer(optimizer, model, evaluator)
         # Build data.
         data = []
         for i in range(4):
@@ -49,23 +47,17 @@ class LearnerTest(absltest.TestCase):
             data.append([jrand.normal(rng0, shape=(8,)),
                          jrand.normal(rng1, shape=(4,))])
         # Write a callback
-        def callback(step, inputs, params, grads, net_out, loss_out, eval_out,
-                     total_loss, total_eval):
-            print(step, jnp.mean(loss_out), jnp.mean(eval_out),
-                  jnp.mean(total_loss), jnp.mean(total_eval))
-        total_loss_outputs, total_eval_outputs, states = train(
-            data, states, callback)
-        total_loss_outputs, total_eval_outputs, states = train(
-            data, states, callback)
+        def callback(step, states, inputs, net_out, loss_out, eval_out):
+            print(step, jnp.mean(loss_out[0]), jnp.mean(loss_out[1]),
+                  jnp.mean(eval_out[0]), jnp.mean(eval_out[1]))
+        loss_outputs, eval_outputs, states = train(data, states, callback)
+        loss_outputs, eval_outputs, states = train(data, states, callback)
 
-    def test_test(self):
-        # Create learner.
-        optimizer = self.optimizer
-        train_model = self.train_model
-        test_model = self.test_model
+    def test_tester(self):
+        # Create tester.
+        model = self.test_model
         evaluator = self.evaluator
-        _, test, states = xdl.Learner(
-            optimizer, train_model, test_model, evaluator)
+        test, states = xdl.Tester(model, evaluator)
         # Build data.
         data = []
         for i in range(4):
@@ -73,23 +65,18 @@ class LearnerTest(absltest.TestCase):
             data.append([jrand.normal(rng0, shape=(8,)),
                          jrand.normal(rng1, shape=(4,))])
         # Write a callback
-        def callback(step, inputs, net_out, loss_out, eval_out, total_loss,
-                     total_eval):
-            print(step, jnp.mean(loss_out), jnp.mean(eval_out),
-                  jnp.mean(total_loss), jnp.mean(total_eval))
-        total_loss_outputs, total_eval_outputs, states = test(
-            data, states, callback)
-        total_loss_outputs, total_eval_outputs, states = test(
-            data, states, callback)
+        def callback(step, states, inputs, net_out, loss_out, eval_out):
+            print(step, jnp.mean(loss_out[0]), jnp.mean(loss_out[1]),
+                  jnp.mean(eval_out[0]), jnp.mean(eval_out[1]))
+        loss_outputs, eval_outputs, states = test(data, states, callback)
+        loss_outputs, eval_outputs, states = test(data, states, callback)
 
     def test_serialize(self):
-        # Create learner.
+        # Create trainer.
         optimizer = self.optimizer
-        train_model = self.train_model
-        test_model = self.test_model
+        model = self.train_model
         evaluator = self.evaluator
-        _, _, states = xdl.Learner(
-            optimizer, train_model, test_model, evaluator)
+        _, states = xdl.Trainer(optimizer, model, evaluator)
         data = xdl.dumps(states)
         loaded_states = xdl.loads(data)
         jax.tree_map(lambda x, y: self.assertTrue(jnp.allclose(x, y)),
