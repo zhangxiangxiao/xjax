@@ -2,7 +2,7 @@
 Unit tests for xeval.
 """
 
-from xjax import xeval
+from xjax import xmet
 
 from absl.testing import absltest
 import jax.numpy as jnp
@@ -11,36 +11,38 @@ from xjax import xnn
 from xjax import xrand
 
 
-class EvaluatorTest(absltest.TestCase):
+class MetricTest(absltest.TestCase):
     def setUp(self):
         # The module is a square loss
-        self.module = xnn.Sequential(xnn.Subtract(), xnn.Square(), xnn.Sum())
-        self.evaluator = xeval.Evaluator(self.module)
+        self.module = xnn.Sequential(
+            xnn.Parallel(xnn.Group(1), xnn.Identity()),
+            xnn.Subtract(), xnn.Square(), xnn.Sum())
+        self.metric = xmet.Metric(self.module)
 
     def test_evaluate(self):
-        evaluate, states = self.evaluator
+        evaluate, states = self.metric
         forward, params, module_states = self.module
         inputs = [None, jrand.normal(xrand.split(), shape=(8,))]
         net_outputs = jrand.normal(xrand.split(), shape=(8,))
         outputs, states = evaluate(inputs, net_outputs, states)
         module_outputs, module_states = forward(
-            params, [inputs[1], net_outputs], module_states)
+            params, [inputs, net_outputs], module_states)
         self.assertTrue(jnp.allclose(module_outputs, outputs))
 
     def test_vectorize(self):
-        evaluate, states = xeval.vectorize(self.evaluator)
+        evaluate, states = xmet.vectorize(self.metric)
         inputs = jrand.normal(xrand.split(), shape=(2, 8))
         net_outputs = jrand.normal(xrand.split(), shape=(2, 8))
         outputs, states = evaluate(inputs, net_outputs, states)
         self.assertEqual((2,), outputs.shape)
 
 
-class BinaryEvalTest(absltest.TestCase):
+class BinaryTest(absltest.TestCase):
     def setUp(self):
-        self.evaluator = xeval.BinaryEval()
+        self.metric = xmet.Binary()
 
     def test_evaluate(self):
-        evaluate, states = self.evaluator
+        evaluate, states = self.metric
         inputs = [jrand.normal(xrand.split(), shape=(8,)),
                   jnp.array([-1, 1, 1, -1])]
         net_outputs = jnp.array([-0.5, -0.1, 0.2, 1.3])
@@ -48,7 +50,7 @@ class BinaryEvalTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(jnp.array(0.5), outputs))
 
     def test_vectorize(self):
-        evaluate, states = xeval.vectorize(self.evaluator)
+        evaluate, states = xmet.vectorize(self.metric)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
                   jnp.array([[-1, 1, 1, -1], [1, -1, 1, -1]])]
         net_outputs = jnp.array([[-0.5, -0.1, 0.2, 1.3],
@@ -57,12 +59,12 @@ class BinaryEvalTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(jnp.array([0.5, 0.5]), outputs))
 
 
-class ClassEvalTest(absltest.TestCase):
+class MultiClassTest(absltest.TestCase):
     def setUp(self):
-        self.evaluator = xeval.ClassEval()
+        self.metric = xmet.MultiClass()
 
     def test_evaluate(self):
-        evaluate, states = self.evaluator
+        evaluate, states = self.metric
         inputs = [jrand.normal(xrand.split(), shape=(8,)),
                   jrand.randint(xrand.split(), shape=(), minval=0, maxval=4)]
         net_outputs = jrand.normal(xrand.split(), shape=(4,))
@@ -72,7 +74,7 @@ class ClassEvalTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(reference, outputs))
 
     def test_vectorize(self):
-        evaluate, states = xeval.vectorize(self.evaluator)
+        evaluate, states = xmet.vectorize(self.metric)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
                   jrand.randint(xrand.split(), shape=(2,), minval=0, maxval=4)]
         net_outputs = jrand.normal(xrand.split(), shape=(2, 4))
@@ -82,12 +84,12 @@ class ClassEvalTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(reference, outputs))
 
 
-class CategoricalEvalTest(absltest.TestCase):
+class CategoricalTest(absltest.TestCase):
     def setUp(self):
-        self.evaluator = xeval.CategoricalEval()
+        self.metric = xmet.Categorical()
 
     def test_evaluate(self):
-        evaluate, states = self.evaluator
+        evaluate, states = self.metric
         inputs = [jrand.normal(xrand.split(), shape=(8,)),
                   jrand.normal(xrand.split(), shape=(4,))]
         net_outputs = jrand.normal(xrand.split(), shape=(4,))
@@ -97,7 +99,7 @@ class CategoricalEvalTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(reference, outputs))
 
     def test_vectorize(self):
-        evaluate, states = xeval.vectorize(self.evaluator)
+        evaluate, states = xmet.vectorize(self.metric)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8,)),
                   jrand.normal(xrand.split(), shape=(2, 4))]
         net_outputs = jrand.normal(xrand.split(), shape=(2, 4))

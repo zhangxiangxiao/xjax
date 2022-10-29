@@ -11,7 +11,7 @@ import jax.random as jrand
 from xjax import xrand
 from xjax import xnn
 from xjax import xmod
-from xjax import xeval
+from xjax import xmet
 from xjax import xopt
 
 class TrainerTesterTest(absltest.TestCase):
@@ -30,9 +30,11 @@ class TrainerTesterTest(absltest.TestCase):
         # Optimizer is SGD.
         self.optimizer = xopt.SGD(
             self.train_model.params, rate=0.01, decay=0.001)
-        # Evaluator is using an l-1 norm.
-        self.evaluator = xeval.Evaluator(
-            xnn.Sequential(xnn.Subtract(), xnn.Abs(), xnn.Sum()))
+        # Metric is using an l-1 norm.
+        self.evaluator = xmet.Metric(
+            xnn.Sequential(
+                xnn.Parallel(xnn.Group(1), xnn.Identity()),
+                xnn.Subtract(), xnn.Abs(), xnn.Sum()))
 
     def test_trainer(self):
         # Create trainer.
