@@ -20,11 +20,11 @@ class LinearTest(absltest.TestCase):
         inputs = jrand.normal(xrand.split(), shape=(4,))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((8,), outputs.shape)
-        reference = jnp.dot(inputs, params[0]) + params[1]
+        reference = jnp.dot(inputs, jnp.transpose(params[0])) + params[1]
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 4))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2,8), outputs.shape)
@@ -42,8 +42,8 @@ class EmbedTest(absltest.TestCase):
         reference = jnp.take(params, inputs, axis=0)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.randint(xrand.split(), (2, 3), 0, 8, dtype='uint64')
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 3, 4), outputs.shape)
@@ -63,8 +63,8 @@ class DropoutTest(absltest.TestCase):
         reference = jnp.where(keep, inputs / 0.5, 0)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2,8))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 8), outputs.shape)
@@ -89,8 +89,8 @@ class ConvTest(absltest.TestCase):
         ref_outputs = jnp.squeeze(ref_outputs, 0)
         self.assertTrue(jnp.allclose(ref_outputs, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 16, 32, 32))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 4, 8, 32, 11), outputs.shape)
@@ -116,8 +116,8 @@ class DeconvTest(absltest.TestCase):
         ref_outputs = jnp.squeeze(ref_outputs, 0)
         self.assertTrue(jnp.allclose(ref_outputs, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 16, 32, 32))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 4, 32, 32, 96), outputs.shape)
@@ -138,8 +138,8 @@ class MaxPoolTest(absltest.TestCase):
             window_dilation=(1, 1, 3, 2))
         self.assertTrue(jnp.allclose(ref_outputs, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 16, 32, 32))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 8, 8, 32, 11), outputs.shape)
@@ -160,8 +160,8 @@ class AvgPoolTest(absltest.TestCase):
             window_dilation=(1, 1, 3, 2))
         self.assertTrue(jnp.allclose(ref_outputs, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 16, 32, 32))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 8, 8, 32, 11), outputs.shape)
@@ -179,8 +179,8 @@ class ResizeTest(absltest.TestCase):
         ref_outputs = jimage.resize(inputs, (8, 32, 16, 48), 'linear')
         self.assertTrue(jnp.allclose(ref_outputs, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 16, 32, 32))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 8, 32, 16, 48), outputs.shape)
@@ -200,8 +200,8 @@ class ResizeLikeTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(ref_outputs[0], outputs[0]))
         self.assertTrue(jnp.allclose(ref_outputs[1], outputs[1]))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8, 16, 32, 32)),
                   jrand.normal(xrand.split(), shape=(2, 8, 32, 16, 48))]
         outputs, states = forward(params, inputs, states)
@@ -230,8 +230,8 @@ class FlattenUpToTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(outputs[3][0], inputs[2][1][0]))
         self.assertTrue(jnp.array_equal(outputs[3][1], inputs[2][1][1]))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
                   [jrand.normal(xrand.split(), shape=(2, 8)),
                    jrand.normal(xrand.split(), shape=(2, 8))],
@@ -258,8 +258,8 @@ class IdentityTest(absltest.TestCase):
         outputs, states = forward(params, inputs, states)
         self.assertTrue(jnp.array_equal(inputs, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 4))
         outputs, states = forward(params, inputs, states)
         self.assertTrue(jnp.array_equal(inputs, outputs))
@@ -283,8 +283,8 @@ class GroupTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(inputs[3], outputs[1][1]))
         self.assertTrue(jnp.array_equal(inputs[2], outputs[1][2]))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)) for i in range(5)]
         outputs, states = forward(params, inputs, states)
         self.assertEqual(2, len(outputs))
@@ -313,8 +313,8 @@ class FlattenTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(inputs[1], outputs[2]))
         self.assertTrue(jnp.array_equal(inputs[2], outputs[3]))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)) for i in range(3)]
         outputs, states = forward(
             params, [[inputs[0], inputs[1]],[inputs[1], inputs[2]]], states)
@@ -335,8 +335,8 @@ class PackTest(absltest.TestCase):
         outputs, states = forward(params, inputs, states)
         self.assertTrue(jnp.array_equal(inputs, outputs[0]))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8))
         outputs, states = forward(params, inputs, states)
         self.assertTrue(jnp.array_equal(inputs, outputs[0]))
@@ -352,8 +352,8 @@ class UnpackTest(absltest.TestCase):
         outputs, states = forward(params, inputs, states)
         self.assertTrue(jnp.array_equal(inputs[0], outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8))]
         outputs, states = forward(params, inputs, states)
         self.assertTrue(jnp.array_equal(inputs[0], outputs))
@@ -370,7 +370,7 @@ class TransferSingleInputTest(absltest.TestCase):
         reference = func(inputs, *args, **kwargs)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-        forward_v, params_v, states_v = xnn.vmap(self.module)
+        forward_v, params_v, states_v = xnn.vectorize(self.module)
         inputs_v = jrand.normal(xrand.split(), shape=(2, 8))
         outputs_v, states_v = forward_v(params_v, inputs_v, states_v)
         self.assertEqual((2, 8), outputs_v.shape)
@@ -429,7 +429,7 @@ class ReductionSingleInputTest(absltest.TestCase):
         reference = func(inputs, axis=-1, *args, **kwargs)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-        forward_v, params_v, states_v = xnn.vmap(self.module)
+        forward_v, params_v, states_v = xnn.vectorize(self.module)
         inputs_v = jrand.normal(xrand.split(), shape=(2, 8, 4))
         outputs_v, states_v = forward(params_v, inputs_v, states_v)
         self.assertEqual((2, 8), outputs_v.shape)
@@ -476,7 +476,7 @@ class ConstructionSingleInputTest(absltest.TestCase):
         reference = func(inputs, *args, **kwargs)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-        forward_v, params_v, states_v = xnn.vmap(self.module)
+        forward_v, params_v, states_v = xnn.vectorize(self.module)
         inputs_v = jrand.normal(xrand.split(), shape=(2, 8))
         outputs_v, states_v = forward_v(params_v, inputs_v, states_v)
         self.assertEqual((2, 8), outputs_v.shape)
@@ -503,8 +503,8 @@ class TransposeTest(absltest.TestCase):
         reference = jnp.transpose(inputs, axes=(2, 1, 0))
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 4, 2))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 2, 4, 8), outputs.shape)
@@ -522,8 +522,8 @@ class ReshapeTest(absltest.TestCase):
         reference = jnp.reshape(inputs, newshape=(-1, 4))
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 4, 2))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 16, 4), outputs.shape)
@@ -541,8 +541,8 @@ class RepeatTest(absltest.TestCase):
         reference = jnp.repeat(inputs, repeats=4, axis=-1)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 4))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 8, 16), outputs.shape)
@@ -559,8 +559,8 @@ class SplitTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(inputs[:2, :], outputs[0]))
         self.assertTrue(jnp.array_equal(inputs[2:, :], outputs[1]))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 4))
         outputs, states = forward(params, inputs, states)
         self.assertTrue(jnp.array_equal(inputs[:, :2, :], outputs[0]))
@@ -578,8 +578,8 @@ class OneHotTest(absltest.TestCase):
         self.assertEqual((8, 4), outputs.shape)
         self.assertEqual(4, jnp.sum(outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.randint(xrand.split(), shape=(2, 4), minval=0, maxval=8)
         outputs, states = forward(params, inputs, states)
         self.assertTrue((2, 8, 4), outputs.shape)
@@ -597,8 +597,8 @@ class MulConstTest(absltest.TestCase):
         reference = inputs * 3.2
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 4))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 8, 4), outputs.shape)
@@ -618,8 +618,8 @@ class AddConstTest(absltest.TestCase):
         reference = inputs + 4.7
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8, 4))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2, 8, 4), outputs.shape)
@@ -637,7 +637,7 @@ class ArithmeticMultiInputTest(absltest.TestCase):
         reference = func(inputs1, inputs2, *args, **kwargs)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-        forward_v, params_v, states_v = xnn.vmap(module(*args, **kwargs))
+        forward_v, params_v, states_v = xnn.vectorize(module(*args, **kwargs))
         inputs1 = jrand.normal(xrand.split(), shape=(2, 8))
         inputs2 = jrand.normal(xrand.split(), shape=(2, 8))
         outputs, states = forward(params, [inputs1, inputs2], states)
@@ -672,8 +672,8 @@ class MatMulTest(absltest.TestCase):
         reference = jnp.matmul(matrix1, matrix2)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         matrix1 = jrand.normal(xrand.split(), shape=(2, 8, 4))
         matrix2 = jrand.normal(xrand.split(), shape=(2, 4, 2))
         outputs, states = forward(params, [matrix1, matrix2], states)
@@ -693,8 +693,8 @@ class DotTest(absltest.TestCase):
         reference = jnp.dot(matrix, vector)
         self.assertTrue(jnp.array_equal(reference, outputs))
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         matrix = jrand.normal(xrand.split(), shape=(2, 8, 4))
         vector = jrand.normal(xrand.split(), shape=(2, 4,))
         outputs, states = forward(params, [matrix, vector], states)
@@ -711,7 +711,7 @@ class ListInputTest(absltest.TestCase):
         ref_outputs = func(inputs, *args, **kwargs)
         self.assertTrue(jnp.allclose(ref_outputs, outputs))
 
-        forward_v, params_v, states_v = xnn.vmap(module(*args, **kwargs))
+        forward_v, params_v, states_v = xnn.vectorize(module(*args, **kwargs))
         inputs_v = [jrand.normal(xrand.split(), shape=(2, 2, 8)),
                     jrand.normal(xrand.split(), shape=(2, 2, 8)),
                     jrand.normal(xrand.split(), shape=(2, 2, 8))]
@@ -737,7 +737,7 @@ class RandomLikeTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(reference, outputs))
 
         module_v_rng = xrand.split()
-        forward_v, params_v, states_v = xnn.vmap(module(
+        forward_v, params_v, states_v = xnn.vectorize(module(
             module_v_rng, *args, **kwargs))
         inputs_v = jrand.normal(xrand.split(), shape=(2, 8,4))
         outputs, states = forward_v(params_v, inputs_v, states_v)
@@ -770,8 +770,8 @@ class SequentialTest(absltest.TestCase):
         outputs, states = forward(params, inputs, states)
         self.assertEqual((), outputs.shape)
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((2,), outputs.shape)
@@ -821,8 +821,8 @@ class ParallelTest(absltest.TestCase):
         self.assertEqual((8,), outputs[1].shape)
         self.assertEqual((), outputs[2].shape)
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.normal(xrand.split(), shape=(2, 8))
         outputs, states = forward(params, [inputs,]*3, states)
         self.assertEqual(3, len(outputs))
@@ -844,8 +844,8 @@ class SharedParallelTest(absltest.TestCase):
         for i in range(len(outputs)):
             self.assertEqual((4,), outputs[i].shape)
 
-    def test_vmap(self):
-        forward, params, states = xnn.vmap(self.module)
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)) for i in range(3)]
         outputs, states = forward(params, inputs, states)
         self.assertEqual(3, len(outputs))

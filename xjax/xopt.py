@@ -166,9 +166,6 @@ def vectorize(optimizer):
         return opt_update(params, grads, states)
     return OptimizerTuple(update, initial_states)
 
-def vmap(optimizer):
-    return vectorize(optimizer)
-
 
 def jit(optimizer, *args, **kwargs):
     """Set up the optmizer for JIT.

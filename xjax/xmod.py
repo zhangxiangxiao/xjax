@@ -270,16 +270,16 @@ def vectorize_states(states, batch):
     # Vectorize module states individually.
     return tuple(xnn.vectorize_states(s, batch) for s in states)
 
-def aggregate_states(states):
+def unvectorize_states(states):
     # Aggregate module states individually.
-    return tuple(xnn.aggregate_states(s) for s in states)
+    return tuple(xnn.unvectorize_states(s) for s in states)
 
-def vectorize(map_func, model, *args, **kwargs):
-    """Vectorize the model.
+def vectorize(model, map_func=jax.vmap, *args, **kwargs):
+    """Vectorize the model with respect to input.
 
     Args:
-      map_func: jax.vmap or jax.pmap.
       model: the model to be vectorized.
+      map_func: jax.vmap or jax.pmap.
 
     Returns:
       forward: vectorized forward function.
@@ -294,7 +294,7 @@ def vectorize(map_func, model, *args, **kwargs):
         batch = jtree.tree_leaves(inputs)[0].shape[0]
         states = vectorize_states(states, batch)
         net_outputs, loss_outputs, states = forward_v(params, inputs, states)
-        states = aggregate_states(states)
+        states = unvectorize_states(states)
         return net_outputs, loss_outputs, states
     # Map over inputs and states, but not parameters.
     backward_v = map_func(model_backward, in_axes=(None, 0, 0), *args, **kwargs)
@@ -303,17 +303,10 @@ def vectorize(map_func, model, *args, **kwargs):
         states = vectorize_states(states, batch)
         grads, net_outputs, loss_outputs, states = backward_v(
             params, inputs, states)
-        states = aggregate_states(states)
+        states = unvectorize_states(states)
         return grads, net_outputs, loss_outputs, states
     return ModelTuple(forward, backward, initial_params, initial_states)
 
-def vmap(model, *args, **kwargs):
-    """Map over inputs and states, but not parameters."""
-    return vectorize(jax.vmap, model, *args, **kwargs)
-
-def pmap(model, *args, **kwargs):
-    """Map over inputs and states, but not parameters."""
-    return vectorize(jax.pmap, model, *args, **kwargs)
 
 def jit(model, *args, **kwargs):
     """Set up the model for JIT.

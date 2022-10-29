@@ -13,7 +13,7 @@ outputs, states = forward(params, inputs, states)
 You should use the returned new states for the next call to forward.
 
 The states of a module consistitude a dict in which the keys control how to
-split and aggregate states when vectorizing a module using xnn.vmap or xnn.pmap.
+synchronize states when vectorizing a module using xnn.vectorize.
 `states = {'rng': rng_states, 'mean': mean_states, k1: v1, k2: v2, ...}`
 `rng_states` will be split to batch using jax.random.split before `forward` and
 aggregated after by selecting the rng of the first sample.
@@ -59,13 +59,13 @@ def Linear(in_dim, out_dim, w_init=jinit.glorot_normal(), b_init=jinit.normal(),
            rng=None):
     rng = rng if rng is not None else xrand.split()
     w_rng, b_rng = jrand.split(rng)
-    initial_w = w_init(w_rng, (in_dim, out_dim))
+    initial_w = w_init(w_rng, (out_dim, in_dim))
     initial_b = b_init(b_rng, (out_dim,))
     initial_params = (initial_w, initial_b)
     @tree_forward
     def forward(params, inputs, states):
         w, b = params
-        return jnp.dot(inputs, w) + b, states
+        return jnp.dot(inputs, jnp.transpose(w)) + b, states
     return ModuleTuple(forward, initial_params, None)
 
 
@@ -630,35 +630,35 @@ def vectorize_states(states, batch):
                 new_states[key] = copy_vectorize(states[key], batch)
     return new_states
 
-def copy_aggregate(states):
-    """Aggregate the copied states."""
+def copy_unvectorize(states):
+    """Unvectorize the copied states."""
     # Simply choose the first rng.
     return jax.tree_map(lambda x: x[0], states)
 
-def mean_aggregate(states):
-    """aggregate states after calling forward."""
-    def leaf_vectorize(leaf):
+def mean_unvectorize(states):
+    """Unvectorize the mean'ed states."""
+    def leaf_unvectorize(leaf):
         return jax.mean(leaf, axis=0, keepdims=False)
-    return jax.tree_map(leaf_vectorize, states)
+    return jax.tree_map(leaf_unvectorize, states)
 
-def aggregate_states(states):
+def unvectorize_states(states):
     new_states = None
     if states is not None:
         new_states = {}
         for key in states:
             if key == 'mean':
-                new_states[key] = mean_aggregate(states[key])
+                new_states[key] = mean_unvectorize(states[key])
             else:
-                new_states[key] = copy_aggregate(states[key])
+                new_states[key] = copy_unvectorize(states[key])
     return new_states
 
 
-def vectorize(map_func, module, *args, **kwargs):
+def vectorize(module, map_func=jax.vmap, *args, **kwargs):
     """Vectorize the module.
 
     Args:
-      map_func: jax.vmap or jax.pmap.
       module: the module to be vectorized.
+      map_func: jax.vmap or jax.pmap.
 
     Returns:
       forward: the vectorized forward function.
@@ -672,16 +672,9 @@ def vectorize(map_func, module, *args, **kwargs):
         batch = jtree.tree_leaves(inputs)[0].shape[0]
         states = vectorize_states(states, batch)
         outputs, states = forward_v(params, inputs, states)
-        states = aggregate_states(states)
+        states = unvectorize_states(states)
         return outputs, states
     return ModuleTuple(forward, initial_params, initial_states)
-
-
-def vmap(module, *args, **kwargs):
-    return vectorize(jax.vmap, module, *args, **kwargs)
-
-def pmap(module, *args, **kwargs):
-    return vectorize(jax.pmap, module, *args, **kwargs)
 
 
 def jit(module, *args, **kwargs):

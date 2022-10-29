@@ -159,7 +159,7 @@ class SegmentTest(absltest.TestCase):
 
 
 
-class VMapOptimizerTest(absltest.TestCase):
+class VectorizeOptimizerTest(absltest.TestCase):
     def setUp(self):
         self.params = [[jrand.normal(xrand.split(), (8,)),
                         jrand.normal(xrand.split(), (4,))],
@@ -173,7 +173,8 @@ class VMapOptimizerTest(absltest.TestCase):
 
     def test_sgd(self):
         params, grads1, grads2 = self.params, self.grads1, self.grads2
-        update, states = xopt.vmap(xopt.SGD(params, rate=0.02, decay=0.003))
+        update, states = xopt.vectorize(xopt.SGD(
+            params, rate=0.02, decay=0.003))
         self.assertEqual(0, states[0])
         params, states = update(params, grads1, states)
         self.assertEqual(1, states[0])
@@ -188,7 +189,7 @@ class VMapOptimizerTest(absltest.TestCase):
 
     def test_momentum(self):
         params, grads1, grads2 = self.params, self.grads1, self.grads2
-        update, states = xopt.vmap(xopt.Momentum(
+        update, states = xopt.vectorize(xopt.Momentum(
             params, rate=0.02, coeff=0.5, decay=0.003))
         self.assertEqual(0, states[0])
         params, states = update(params, grads1, states)
@@ -207,15 +208,17 @@ class VMapOptimizerTest(absltest.TestCase):
     def test_container(self):
         params, grads1, grads2 = self.params, self.grads1, self.grads2
         params0, params1 = params[0], params[1]
-        update, states = xopt.vmap(xopt.Container(
+        update, states = xopt.vectorize(xopt.Container(
             xopt.SGD(params[0], rate=0.02, decay=0.003),
             xopt.SGD(params[1], rate=0.01, decay=0.001)))
         params, states = update(params, grads1, states)
         params, states = update(params, grads2, states)
-        update0, states0 = xopt.vmap(xopt.SGD(params0, rate=0.02, decay=0.003))
+        update0, states0 = xopt.vectorize(xopt.SGD(
+            params0, rate=0.02, decay=0.003))
         params0, states0 = update0(params0, grads1[0], states0)
         params0, states0 = update0(params0, grads2[0], states0)
-        update1, states1 = xopt.vmap(xopt.SGD(params1, rate=0.01, decay=0.001))
+        update1, states1 = xopt.vectorize(xopt.SGD(
+            params1, rate=0.01, decay=0.001))
         params1, states1 = update1(params1, grads1[1], states1)
         params1, states1 = update1(params1, grads2[1], states1)
         jax.tree_map(lambda x, y: self.assertTrue(jnp.allclose(x, y)),
@@ -223,7 +226,7 @@ class VMapOptimizerTest(absltest.TestCase):
 
 
 
-class VMapSegmentTest(absltest.TestCase):
+class VectorizeSegmentTest(absltest.TestCase):
     def setUp(self):
         self.params = [[jrand.normal(xrand.split(), (64, 8)),
                         jrand.normal(xrand.split(), (64, 4))],
@@ -243,7 +246,8 @@ class VMapSegmentTest(absltest.TestCase):
 
     def test_sgd(self):
         params, grads1, grads2 = self.params, self.grads1, self.grads2
-        update, states = xopt.vmap(xopt.SGD(params, rate=0.02, decay=0.003))
+        update, states = xopt.vectorize(xopt.SGD(
+            params, rate=0.02, decay=0.003))
         self.assertEqual(0, states[0])
         params, states = update(params, grads1, states)
         self.assertEqual(1, states[0])
@@ -267,7 +271,7 @@ class VMapSegmentTest(absltest.TestCase):
 
     def test_momentum(self):
         params, grads1, grads2 = self.params, self.grads1, self.grads2
-        update, states = xopt.vmap(xopt.Momentum(
+        update, states = xopt.vectorize(xopt.Momentum(
             params, rate=0.02, coeff=0.5, decay=0.003))
         self.assertEqual(0, states[0])
         params, states = update(params, grads1, states)
@@ -300,20 +304,21 @@ class VMapSegmentTest(absltest.TestCase):
     def test_container(self):
         params, grads1, grads2 = self.params, self.grads1, self.grads2
         params0, params1 = params[0], params[1]
-        update, states = xopt.vmap(xopt.Container(
+        update, states = xopt.vectorize(xopt.Container(
             xopt.SGD(params[0], rate=0.02, decay=0.003),
             xopt.SGD(params[1], rate=0.01, decay=0.001)))
         params, states = update(params, grads1, states)
         params, states = update(params, grads2, states)
-        update0, states0 = xopt.vmap(xopt.SGD(params0, rate=0.02, decay=0.003))
+        update0, states0 = xopt.vectorize(xopt.SGD(
+            params0, rate=0.02, decay=0.003))
         params0, states0 = update0(params0, grads1[0], states0)
         params0, states0 = update0(params0, grads2[0], states0)
-        update1, states1 = xopt.vmap(xopt.SGD(params1, rate=0.01, decay=0.001))
+        update1, states1 = xopt.vectorize(xopt.SGD(
+            params1, rate=0.01, decay=0.001))
         params1, states1 = update1(params1, grads1[1], states1)
         params1, states1 = update1(params1, grads2[1], states1)
         jax.tree_map(lambda x, y: self.assertTrue(jnp.allclose(x, y)),
                      [params0, params1], params)
-
 
 
 class ScheduleTest(absltest.TestCase):

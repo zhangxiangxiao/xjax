@@ -27,8 +27,8 @@ class EvaluatorTest(absltest.TestCase):
             params, [inputs[1], net_outputs], module_states)
         self.assertTrue(jnp.allclose(module_outputs, outputs))
 
-    def test_vmap(self):
-        evaluate, states = xeval.vmap(self.evaluator)
+    def test_vectorize(self):
+        evaluate, states = xeval.vectorize(self.evaluator)
         inputs = jrand.normal(xrand.split(), shape=(2, 8))
         net_outputs = jrand.normal(xrand.split(), shape=(2, 8))
         outputs, states = evaluate(inputs, net_outputs, states)
@@ -47,8 +47,8 @@ class BinaryEvalTest(absltest.TestCase):
         outputs, states = evaluate(inputs, net_outputs, states)
         self.assertTrue(jnp.allclose(jnp.array(0.5), outputs))
 
-    def test_vmap(self):
-        evaluate, states = xeval.vmap(self.evaluator)
+    def test_vectorize(self):
+        evaluate, states = xeval.vectorize(self.evaluator)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
                   jnp.array([[-1, 1, 1, -1], [1, -1, 1, -1]])]
         net_outputs = jnp.array([[-0.5, -0.1, 0.2, 1.3],
@@ -71,8 +71,8 @@ class ClassEvalTest(absltest.TestCase):
             inputs[1], jnp.argmax(net_outputs, axis=-1)))
         self.assertTrue(jnp.allclose(reference, outputs))
 
-    def test_vmap(self):
-        evaluate, states = xeval.vmap(self.evaluator)
+    def test_vectorize(self):
+        evaluate, states = xeval.vectorize(self.evaluator)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
                   jrand.randint(xrand.split(), shape=(2,), minval=0, maxval=4)]
         net_outputs = jrand.normal(xrand.split(), shape=(2, 4))
@@ -96,8 +96,8 @@ class CategoricalEvalTest(absltest.TestCase):
                                        jnp.argmax(net_outputs, axis=-1)))
         self.assertTrue(jnp.allclose(reference, outputs))
 
-    def test_vmap(self):
-        evaluate, states = xeval.vmap(self.evaluator)
+    def test_vectorize(self):
+        evaluate, states = xeval.vectorize(self.evaluator)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8,)),
                   jrand.normal(xrand.split(), shape=(2, 4))]
         net_outputs = jrand.normal(xrand.split(), shape=(2, 4))

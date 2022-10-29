@@ -55,8 +55,8 @@ class ModelTest(absltest.TestCase):
         jax.tree_map(lambda x, y: self.assertTrue(jnp.allclose(x, y)),
                      ref_grads, grads)
 
-    def test_vmap(self):
-        forward, backward, params, states = xmod.vmap(self.model)
+    def test_vectorize(self):
+        forward, backward, params, states = xmod.vectorize(self.model)
         inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
                   jrand.normal(xrand.split(), shape=(2, 2))]
         net_outputs, loss_outputs, states = forward(params, inputs, states)
@@ -142,8 +142,8 @@ class GANTest(absltest.TestCase):
         jax.tree_map(lambda x, y: self.assertTrue(jnp.allclose(x, y)),
                      ref_disc_grads, disc_grads)
 
-    def test_vmap(self):
-        forward, backward, params, states = xmod.vmap(self.model)
+    def test_vectorize(self):
+        forward, backward, params, states = xmod.vectorize(self.model)
         inputs = [jrand.normal(xrand.split(), shape=(2,8)),
                   jrand.normal(xrand.split(), shape=(2,2))]
         ([gen_outputs, [real_outputs, fake_outputs]],

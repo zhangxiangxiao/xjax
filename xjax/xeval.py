@@ -61,13 +61,12 @@ def CategoricalEval():
     return EvaluatorTuple(evaluate, None)
 
 
-def vectorize(map_func, evaluator, *args, **kwargs):
+def vectorize(evaluator, map_func=jax.vmap, *args, **kwargs):
     """Vectorize the evaluator.
 
     Args:
-      map_func: jax.vmap or jax.pmap
       evaluator: the evaluator to be vectorized.
-      size: the batch size.
+      map_func: jax.vmap or jax.pmap
 
     Returns:
       evaluate: the vectorized evaluate function.
@@ -80,15 +79,9 @@ def vectorize(map_func, evaluator, *args, **kwargs):
         batch = jtree.tree_leaves(inputs)[0].shape[0]
         states = xnn.vectorize_states(states, batch)
         outputs, states = evaluate_v(inputs, net_outputs, states)
-        states = xnn.aggregate_states(states)
+        states = xnn.unvectorize_states(states)
         return outputs, states
     return EvaluatorTuple(evaluate, initial_states)
-
-def vmap(evaluator, *args, **kwargs):
-    return vectorize(jax.vmap, evaluator, *args, **kwargs)
-
-def pmap(evaluator, *args, **kwargs):
-    return vectorize(jax.pmap, evaluator, *args, **kwargs)
 
 
 def jit(evaluator, *args, **kwargs):
