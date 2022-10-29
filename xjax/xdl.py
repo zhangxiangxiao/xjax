@@ -134,7 +134,7 @@ def load(fd):
         lambda x: jnp.array(x) if isinstance(x, np.ndarray) else x, states)
 
 def loads(data):
-    """Loads states from bytes."""
+    """Load states from bytes."""
     states = pickle.loads(data)
     return jax.tree_map(
         lambda x: jnp.array(x) if isinstance(x, np.ndarray) else x, states)
