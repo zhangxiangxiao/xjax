@@ -26,11 +26,11 @@ def train(data, model, optimizer, metric=None, callback=None):
         are tuples of `(current_values, total_values)`.
 
     Returns:
-      loss_outputs: running-averaged loss outputs.
-      metric_outputs: running-averaged metric outputs.
       model: new model with updated parameters and states after training.
       optimizer: new optimizer with updated states after training.
+      loss_outputs: running-averaged loss outputs.
       metric: new metric with updated states after training.
+      metric_outputs: running-averaged metric outputs.
     """
     forward, backward, params, model_states = model
     update, optimizer_states = optimizer
@@ -63,9 +63,9 @@ def train(data, model, optimizer, metric=None, callback=None):
     optimizer = type(optimizer)(update, optimizer_states)
     if metric:
         metric = type(metric)(evaluate, metric_states)
-    return total_loss_outputs, total_metric_outputs, model, optimizer, metric 
+    return model, optimizer, total_loss_outputs, metric, total_metric_outputs 
 
-def test(data, model, metric, callback=None):
+def test(data, model, metric=None, callback=None):
     """Testing function for xjax models.
 
     Args:
@@ -112,7 +112,7 @@ def test(data, model, metric, callback=None):
     model = type(model)(forward, backward, params, model_states)
     if metric:
         metric = type(metric)(evaluate, metric_states)
-    return total_loss_outputs, total_metric_outputs, model, metric
+    return model, total_loss_outputs, metric, total_metric_outputs
 
 
 def dump(states, fd):

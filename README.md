@@ -8,36 +8,30 @@ XJAX is highly experimental and not ready for use, but feel free to grab and do 
 from xjax import xnn, xopt, xmod, xdl, xrand
 import jax.random as jrand
 
-# A 2-layer MLP feed-forward neural net.
+# Data with 6 samples - input is an 8-dim vector, target 4-dim.
+data = []
+for i in range(6):
+    rng0, rng1 = xrand.split(2)
+    data.append([jrand.normal(rng0, shape=(8,)),
+                 jrand.normal(rng1, shape=(4,))])
+
+# Model is a 2-layer MLP feed-forward neural net with square loss.
 net = xnn.Sequential(
     xnn.Linear(8, 16),
     xnn.Dropout(p=0.5),
     xnn.ReLU(),
     xnn.Linear(16, 4))
-
-# Square loss.
 loss = xnn.Sequential(xnn.Subtract(), xnn.Square(), xnn.Sum())
-
-# Build a model using net and loss.
 model = xmod.Model(net, loss)
 
-# SGD optimizer.
+# Train and test using SGD optimizer.
 optimizer = xopt.SGD(model.params, rate=0.01, decay=0.001)
+model, optimizer, train_loss, _, _ = xdl.train(data, model, optimizer)
+model, test_loss, _, _ = xdl.test(data, model)
 
-# Put everything together into a learner.
-train, test, states = xdl.Learner(optimizer, model)
-
-# Create some artificial data - any iterable works.
-data = []
-for i in range(4):
-    rng0, rng1 = xrand.split(2)
-    data.append([jrand.normal(rng0, shape=(8,)),
-                 jrand.normal(rng1, shape=(4,))])
-
-# Train and test.
-train_loss, _, states = train(data, states)
-test_loss, _, states = test(data, states)
-
-# Save learner states will save the model parameters and optimization states.
-serialized_data = xdl.dumps(states)
+# Save the model parameters and optimization states.
+serialized_data = xdl.dumps({
+    'params': model.params,
+    'model_states': model.states,
+    'optimizer_states': optimizer.states})
 ```
