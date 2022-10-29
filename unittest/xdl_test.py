@@ -51,9 +51,9 @@ class XDLTest(absltest.TestCase):
         def callback(step, inputs, net_out, loss_out, metric_out):
             print(step, jnp.mean(loss_out[0]), jnp.mean(loss_out[1]),
                   jnp.mean(metric_out[0]), jnp.mean(metric_out[1]))
-        loss_outputs, metric_outputs, model, optimizer, metric = xdl.train(
+        model, optimizer, loss_outputs, metric, metric_outputs = xdl.train(
             data, model, optimizer, metric, callback)
-        loss_outputs, metric_outputs, model, optimizer, metric = xdl.train(
+        model, optimizer, loss_outputs, metric, metric_outputs = xdl.train(
             data, model, optimizer, metric, callback)
 
     def test_test(self):
@@ -70,9 +70,9 @@ class XDLTest(absltest.TestCase):
         def callback(step, inputs, net_out, loss_out, metric_out):
             print(step, jnp.mean(loss_out[0]), jnp.mean(loss_out[1]),
                   jnp.mean(metric_out[0]), jnp.mean(metric_out[1]))
-        loss_outputs, metric_outputs, model, metric = xdl.test(
+        model, loss_outputs, metric, metric_outputs = xdl.test(
             data, model, metric, callback)
-        loss_outputs, metric_outputs, model, metric = xdl.test(
+        model, loss_outputs, metric, metric_outputs = xdl.test(
             data, model, metric, callback)
 
     def test_serialize(self):
