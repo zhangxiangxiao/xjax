@@ -48,12 +48,12 @@ class XDLTest(absltest.TestCase):
             data.append([jrand.normal(rng0, shape=(8,)),
                          jrand.normal(rng1, shape=(4,))])
         # Write a callback
-        def callback(step, inputs, net_out, loss_out, metric_out):
-            print(step, jnp.mean(loss_out[0]), jnp.mean(loss_out[1]),
-                  jnp.mean(metric_out[0]), jnp.mean(metric_out[1]))
-        model, optimizer, loss_outputs, metric, metric_outputs = xdl.train(
+        def callback(step, states, values, currents, totals):
+            print(step, jnp.mean(currents[0]), jnp.mean(totals[0]),
+                  jnp.mean(currents[1]), jnp.mean(totals[1]))
+        model, optimizer, metric, totals = xdl.train(
             data, model, optimizer, metric, callback)
-        model, optimizer, loss_outputs, metric, metric_outputs = xdl.train(
+        model, optimizer, metric, totals = xdl.train(
             data, model, optimizer, metric, callback)
 
     def test_test(self):
@@ -67,12 +67,12 @@ class XDLTest(absltest.TestCase):
             data.append([jrand.normal(rng0, shape=(8,)),
                          jrand.normal(rng1, shape=(4,))])
         # Write a callback
-        def callback(step, inputs, net_out, loss_out, metric_out):
-            print(step, jnp.mean(loss_out[0]), jnp.mean(loss_out[1]),
-                  jnp.mean(metric_out[0]), jnp.mean(metric_out[1]))
-        model, loss_outputs, metric, metric_outputs = xdl.test(
+        def callback(step, states, values, currents, totals):
+            print(step, jnp.mean(currents[0]), jnp.mean(totals[0]),
+                  jnp.mean(currents[1]), jnp.mean(totals[1]))
+        model, metric, totals = xdl.test(
             data, model, metric, callback)
-        model, loss_outputs, metric, metric_outputs = xdl.test(
+        model, metric, totals = xdl.test(
             data, model, metric, callback)
 
     def test_serialize(self):

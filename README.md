@@ -24,10 +24,10 @@ net = xnn.Sequential(
 loss = xnn.Sequential(xnn.Subtract(), xnn.Square(), xnn.Sum())
 model = xmod.Model(net, loss)
 
-# Train and test using SGD optimizer.
+# Train and test with SGD optimizer.
 optimizer = xopt.SGD(model.params, rate=0.01, decay=0.001)
-model, optimizer, train_loss, _, _ = xdl.train(data, model, optimizer)
-model, test_loss, _, _ = xdl.test(data, model)
+model, optimizer, train_loss = xdl.train(data, model, optimizer)
+model, test_loss = xdl.test(data, model)
 
 # Save the model parameters and optimization states.
 serialized_data = xdl.dumps({

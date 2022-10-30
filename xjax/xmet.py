@@ -15,8 +15,7 @@ import jax.tree_util as jtree
 from xjax import xnn
 
 
-MetricTuple = namedtuple('Metric', ['evaluate', 'states'])
-
+MetricTuple = namedtuple('MetricTuple', ['evaluate', 'states'])
 
 def Metric(module):
     """Generic metric which is simply an xjax.xnn module.
@@ -33,28 +32,25 @@ def Metric(module):
         return forward(params, (inputs, net_outputs), states)
     return MetricTuple(evaluate, initial_states)
 
-
 def Binary():
-    """Binary classification metric. Assuming _, labels = inputs."""
+    """Binary classification metric. Assuming labels = inputs[-1]."""
     def evaluate(inputs, net_outputs, states):
         net_labels = jnp.where(net_outputs > 0, 1, -1)
-        return jnp.mean(jnp.equal(inputs[1], net_labels)), states
+        return jnp.mean(jnp.equal(inputs[-1], net_labels)), states
     return MetricTuple(evaluate, None)
-
 
 def MultiClass():
-    """Multi-class metric. Assuming _, labels = inputs."""
+    """Multi-class metric. Assuming labels = inputs[-1]."""
     def evaluate(inputs, net_outputs, states):
         net_labels = jnp.argmax(net_outputs, axis=-1)
-        return jnp.mean(jnp.equal(inputs[1], net_labels)), states
+        return jnp.mean(jnp.equal(inputs[-1], net_labels)), states
     return MetricTuple(evaluate, None)
 
-
 def Categorical():
-    """Categorical classification metric. Assuming _, targets = inputs."""
+    """Categorical classification metric. Assuming targets = inputs[-1]."""
     def evaluate(inputs, net_outputs, states):
         net_labels = jnp.argmax(net_outputs, axis=-1)
-        tar_labels = jnp.argmax(inputs[1], axis=-1)
+        tar_labels = jnp.argmax(inputs[-1], axis=-1)
         return jnp.mean(jnp.equal(net_labels, tar_labels)), states
     return MetricTuple(evaluate, None)
 
