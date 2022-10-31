@@ -1,7 +1,13 @@
 """
-Metric library for XJAX.
+Functional metric library for JAX.
 
-This module implements metrics for xjax.
+Design principle: an xmet metric is a functon that returns 3 objects:
+   evaluate: the evaluate function.
+   states: initial states that evaluation will modify.
+
+The signature of the evaluate function should be
+outputs, states = evaluate(inputs, net_outputs, states)
+You should use the returned new states for the next call to evaluate.
 """
 
 from __future__ import absolute_import
