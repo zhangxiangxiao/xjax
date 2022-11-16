@@ -359,6 +359,32 @@ class UnpackTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(inputs[0], outputs))
 
 
+class ReverseTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.Reverse()
+
+    def test_forward(self):
+        inputs = [jrand.normal(xrand.split(), shape=(8,)),
+                  jrand.normal(xrand.split(), shape=(4,)),
+                  jrand.normal(xrand.split(), shape=(2,))]
+        forward, params, states = self.module
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs[0], outputs[2]))
+        self.assertTrue(jnp.array_equal(inputs[1], outputs[1]))
+        self.assertTrue(jnp.array_equal(inputs[2], outputs[0]))
+
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
+        inputs = [jrand.normal(xrand.split(), shape=(2, 8)),
+                  jrand.normal(xrand.split(), shape=(2, 4)),
+                  jrand.normal(xrand.split(), shape=(2, 2))]
+        forward, params, states = self.module
+        outputs, states = forward(params, inputs, states)
+        self.assertTrue(jnp.array_equal(inputs[0], outputs[2]))
+        self.assertTrue(jnp.array_equal(inputs[1], outputs[1]))
+        self.assertTrue(jnp.array_equal(inputs[2], outputs[0]))
+
+
 class TransferSingleInputTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
         self.module = module(*args, **kwargs)

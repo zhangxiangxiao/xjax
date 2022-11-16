@@ -361,6 +361,13 @@ def Unpack():
     return ModuleTuple(forward, None, None)
 
 
+def Reverse():
+    """Reverse inputs."""
+    def forward(params, inputs, states):
+        return inputs[::-1], states
+    return ModuleTuple(forward, None, None)
+
+
 def SingleInput(func, *args, **kwargs):
     """Layer that feed func with inputs.
     Used for modules that do not have params and states. Hyper-parameters are
