@@ -574,6 +574,28 @@ def DenseSequential(*modules):
     return ModuleTuple(forward, initial_params, initial_states)
 
 
+def MergeSequential(*modules):
+    """Sequential where inputs are merged into the intermediate outputs."""
+    forwards, initial_params, initial_states_list = zip(*modules)
+    initial_states = pack_states_list(initial_states_list)
+    def forward(params, inputs, states):
+        states = unpack_states(states)
+        outputs = None
+        new_states = {}
+        for i in range(len(forwards)):
+            if outputs == None:
+                module_inputs = inputs[i]
+            else:
+                module_inputs = [inputs[i], outputs]
+            if states is not None and i in states:
+                outputs, new_states[i] = forwards[i](
+                    params[i], module_inputs, states[i])
+            else:
+                outputs, _ = forwards[i](params[i], module_inputs, None)
+        return outputs, pack_states(new_states)
+    return ModuleTuple(forward, initial_params, initial_states)
+
+
 def Parallel(*modules):
     """Parallel container."""
     forwards, initial_params, initial_states_list = zip(*modules)

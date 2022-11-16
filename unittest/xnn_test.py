@@ -805,6 +805,35 @@ class DenseSequentialTest(absltest.TestCase):
         self.assertTrue(jnp.allclose(outputs[3], outputs4))
 
 
+class MergeSequentialTest(absltest.TestCase):
+    def setUp(self):
+        self.module1 = xnn.Linear(8, 16)
+        self.module2 = xnn.Sequential(xnn.Add(), xnn.Dropout())
+        self.module3 = xnn.Sequential(xnn.Add(), xnn.ReLU())
+        self.module4 = xnn.Sequential(xnn.Add(), xnn.Linear(16, 4))
+        self.module = xnn.MergeSequential(
+            self.module1, self.module2, self.module3, self.module4)
+
+    def test_forward(self):
+        forward, params, states = self.module
+        inputs = [
+            jrand.normal(xrand.split(), shape=(8,)),
+            jrand.normal(xrand.split(), shape=(16,)),
+            jrand.normal(xrand.split(), shape=(16,)),
+            jrand.normal(xrand.split(), shape=(16,))
+        ]
+        outputs, states = forward(params, inputs, states)
+        forward1, params1, states1 = self.module1
+        outputs1, states1 = forward1(params1, inputs[0], states1)
+        forward2, params2, states2 = self.module2
+        outputs2, states2 = forward2(params2, [inputs[1], outputs1], states2)
+        forward3, params3, states3 = self.module3
+        outputs3, states3 = forward3(params3, [inputs[2], outputs2], states3)
+        forward4, params4, states4 = self.module4
+        outputs4, states4 = forward4(params4, [inputs[3], outputs3], states4)
+        self.assertTrue(jnp.allclose(outputs, outputs4))
+
+
 class ParallelTest(absltest.TestCase):
     def setUp(self):
         self.module = xnn.Parallel(
