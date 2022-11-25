@@ -426,35 +426,6 @@ def logcosh(inputs):
     return jnp.logaddexp(inputs, -inputs) - math.log(2)
 LogCosh = partial(SingleInput, logcosh)
 
-
-def sigmax(inputs, axis=-1):
-    """Calculate the sigmax probabilities.
-    Pr[i] = (sigmoid(y_i)+sum_j[sigmoid(-y_j)]/(n-1)-sigmoid(-y_i)/(n-1))/n.
-    """
-    if axis == None:
-        n = jnp.size(inputs)
-    elif isinstance(axis, (tuple, list)):
-        n = math.prod(inputs.shape[i] for i in axis)
-    else:
-        n = inputs.shape[axis]
-    plus_term = jnn.softmax(jnn.softplus(inputs), axis=axis)
-    sig_term = jnn.softmax(jnn.log_sigmoid(inputs), axis=axis)
-    return (plus_term + sig_term) / 2
-Sigmax = partial(SingleInput, sigmax)
-
-def log_sigmax(inputs, axis=-1):
-    if axis == None:
-        n = jnp.size(inputs)
-    elif isinstance(axis, (tuple, list)):
-        n = math.prod(inputs.shape[i] for i in axis)
-    else:
-        n = inputs.shape[axis]
-    plus_term = jnn.log_softmax(jnn.softplus(inputs), axis=axis)
-    sig_term = jnn.log_softmax(jnn.log_sigmoid(inputs), axis=axis)
-    return jnp.logaddexp(plus_term, sig_term) - math.log(2)
-LogSigmax = partial(SingleInput, log_sigmax)
-
-
 def MultiInput(func, *args, **kwargs):
     """
     Layer that applies func with inputs unpacked. Used for modules that accept
