@@ -426,11 +426,47 @@ def logcosh(inputs):
     return jnp.logaddexp(inputs, -inputs) - math.log(2)
 LogCosh = partial(SingleInput, logcosh)
 
+def depad(array, pad_width):
+    """Transpose of pad."""
+    nd = array.ndim
+    nvals = jnp.asarray(jax.tree_map(
+        lambda x: jax.core.concrete_or_error(
+            None, x, context='pad_width argument of xnn.depad'),
+        pad_width))
+    if nvals.dtype.kind == 'O':
+        raise TypeError('pad_width entries must be the same shape.')
+    if nvals.shape == (nd, 2):
+        # ((before_1, after_1), ..., (before_N, after_N))
+        pad_width = tuple((nval[0], nval[1]) for nval in nvals)
+    elif nvals.shape == (1, 2):
+        # ((before, after),)
+        pad_width = tuple((nvals[0, 0], nvals[0, 1]) for i in range(nd))
+    elif nvals.shape == (2,):
+        # (before, after)  (not in the numpy docstring but works anyway)
+        pad_width = tuple((nvals[0], nvals[1]) for i in range(nd))
+    elif nvals.shape == (1,):
+        # (pad,)
+        pad_width = tuple((nvals[0], nvals[0]) for i in range(nd))
+    elif nvals.shape == ():
+        # pad
+        pad_width = tuple((nvals.flat[0], nvals.flat[0]) for i in range(nd))
+    else:
+        raise ValueError('xnn.depad: pad_width has unsupported shape')
+    slices = []
+    for p in pad_width:
+        if p[1] == 0:
+            slices.append(slice(p[0], None))
+        else:
+            slices.append(slice(p[0], -p[1]))
+    return array[tuple(slices)]
+Depad = partial(SingleInput, depad)
+
+
 def MultiInput(func, *args, **kwargs):
-    """
-    Layer that applies func with inputs unpacked. Used for modules that accept
-    multiple inputs and do not have params or states. Hyper-parameters are
-    stored in kwargs as a function closure.
+    """ Layer that applies func with inputs unpacked.
+
+    Used for modules that accept multiple inputs and do not have params or
+    states. Hyper-parameters are stored in kwargs as a function closure.
     """
     def forward(params, inputs, states):
         def wrapped_func(*inputs):
