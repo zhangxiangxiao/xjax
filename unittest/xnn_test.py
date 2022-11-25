@@ -608,7 +608,27 @@ class OneHotTest(absltest.TestCase):
         forward, params, states = xnn.vectorize(self.module)
         inputs = jrand.randint(xrand.split(), shape=(2, 4), minval=0, maxval=8)
         outputs, states = forward(params, inputs, states)
-        self.assertTrue((2, 8, 4), outputs.shape)
+        self.assertEqual((2, 8, 4), outputs.shape)
+
+
+class PadTest(absltest.TestCase):
+    def setUp(self):
+        self.module = xnn.Pad(((1,2),(2,3)))
+
+    def test_forward(self):
+        inputs = jrand.randint(xrand.split(), shape=(2, 4), minval=0, maxval=8)
+        forward, params, states = self.module
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((5, 9), outputs.shape)
+        reference = jnp.pad(inputs, ((1,2),(2,3)))
+        self.assertTrue(jnp.array_equal(reference, outputs))
+
+    def test_vectorize(self):
+        forward, params, states = xnn.vectorize(self.module)
+        inputs = jrand.randint(xrand.split(), shape=(2, 2, 4), minval=0,
+                               maxval=8)
+        outputs, states = forward(params, inputs, states)
+        self.assertEqual((2, 5, 9), outputs.shape)
 
 
 class MulConstTest(absltest.TestCase):

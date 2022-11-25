@@ -410,6 +410,7 @@ Repeat = partial(SingleInput, jnp.repeat)
 Split = partial(SingleInput, jnp.split)
 # Others
 OneHot = partial(SingleInput, jnn.one_hot)
+Pad = partial(SingleInput, jnp.pad)
 
 def mul_const(inputs, const):
     """Multiply by a constant."""
