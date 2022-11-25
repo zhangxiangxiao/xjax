@@ -35,6 +35,7 @@ import jax.nn.initializers as jinit
 import jax.numpy as jnp
 import jax.random as jrand
 import jax.tree_util as jtree
+import numpy as np
 from xjax import xrand
 
 
@@ -428,37 +429,12 @@ LogCosh = partial(SingleInput, logcosh)
 
 def depad(array, pad_width):
     """Transpose of pad."""
-    nd = array.ndim
-    nvals = jnp.asarray(jax.tree_map(
-        lambda x: jax.core.concrete_or_error(
-            None, x, context='pad_width argument of xnn.depad'),
-        pad_width))
-    if nvals.dtype.kind == 'O':
-        raise TypeError('pad_width entries must be the same shape.')
-    if nvals.shape == (nd, 2):
-        # ((before_1, after_1), ..., (before_N, after_N))
-        pad_width = tuple((nval[0], nval[1]) for nval in nvals)
-    elif nvals.shape == (1, 2):
-        # ((before, after),)
-        pad_width = tuple((nvals[0, 0], nvals[0, 1]) for i in range(nd))
-    elif nvals.shape == (2,):
-        # (before, after)  (not in the numpy docstring but works anyway)
-        pad_width = tuple((nvals[0], nvals[1]) for i in range(nd))
-    elif nvals.shape == (1,):
-        # (pad,)
-        pad_width = tuple((nvals[0], nvals[0]) for i in range(nd))
-    elif nvals.shape == ():
-        # pad
-        pad_width = tuple((nvals.flat[0], nvals.flat[0]) for i in range(nd))
-    else:
-        raise ValueError('xnn.depad: pad_width has unsupported shape')
-    slices = []
-    for p in pad_width:
-        if p[1] == 0:
-            slices.append(slice(p[0], None))
-        else:
-            slices.append(slice(p[0], -p[1]))
-    return array[tuple(slices)]
+    pad_width = np.asarray(pad_width)
+    if not pad_width.dtype.kind == 'i':
+        raise TypeError('pad_width must be of integral type.')
+    pad_width = np.broadcast_to(pad_width, (array.ndim, 2)).tolist()
+    slices = tuple(slice(p[0], None if p[1] == 0 else -p[1]) for p in pad_width)
+    return array[slices]
 Depad = partial(SingleInput, depad)
 
 
