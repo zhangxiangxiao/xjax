@@ -716,12 +716,12 @@ class ArithmeticMultiInputTest(absltest.TestCase):
         self.template(xnn.Divide, jnp.divide)
 
     def test_logaddexp(self):
-        self.template(xnn.LogAddExp, jnp.logaddexp)
+        self.template(xnn.Logaddexp, jnp.logaddexp)
 
 
-class MatMulTest(absltest.TestCase):
+class MatmulTest(absltest.TestCase):
     def setUp(self):
-        self.module = xnn.MatMul()
+        self.module = xnn.Matmul()
 
     def test_forward(self):
         matrix1 = jrand.normal(xrand.split(), shape=(8, 4))
