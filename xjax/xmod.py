@@ -41,14 +41,12 @@ def vjp(forward, params, inputs, states):
         return grad_params
     return vjpf, outputs, states
 
-
 def vjp_full(forward, params, inputs, states):
     """jax.vjp against params and inputs of forward."""
     def _forward(_params, _inputs):
         return forward(_params, _inputs, states)
     outputs, vjpf, states = jax.vjp(_forward, params, inputs, has_aux=True)
     return vjpf, outputs, states
-
 
 def vjp_inputs(forward, params, inputs, states):
     """jax.vjp against the inputs of forward."""
@@ -64,6 +62,8 @@ def vjp_inputs(forward, params, inputs, states):
 def map_ones_like(tree):
     return jax.tree_map(jnp.ones_like, tree)
 
+def map_zeros_like(tree):
+    return jax.tree_map(jnp.zeros_like, tree)
 
 def map_add(tree1, tree2):
     return jax.tree_map(jnp.add, tree1, tree2)
