@@ -381,6 +381,7 @@ def SingleInput(func, *args, **kwargs):
 Abs = partial(SingleInput, jnp.abs)
 Tanh = partial(SingleInput, jnp.tanh)
 Exp = partial(SingleInput, jnp.exp)
+Log = partial(SingleInput, jnp.log)
 Square = partial(SingleInput, jnp.square)
 ReLU = partial(SingleInput, jnn.relu)
 Sigmoid = partial(SingleInput, jnn.sigmoid)

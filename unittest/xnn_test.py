@@ -390,7 +390,7 @@ class TransferSingleInputTest(absltest.TestCase):
         self.module = module(*args, **kwargs)
 
         forward, params, states = self.module
-        inputs = jrand.normal(xrand.split(), shape=(8,))
+        inputs = jnp.abs(jrand.normal(xrand.split(), shape=(8,)))
         outputs, states = forward(params, inputs, states)
         self.assertEqual((8,), outputs.shape)
         reference = func(inputs, *args, **kwargs)
@@ -409,6 +409,9 @@ class TransferSingleInputTest(absltest.TestCase):
 
     def test_exp(self):
         return self.template(xnn.Exp, jnp.exp)
+
+    def test_log(self):
+        return self.template(xnn.Log, jnp.log)
 
     def test_square(self):
         return self.template(xnn.Square, jnp.square)
