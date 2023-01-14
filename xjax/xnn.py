@@ -456,6 +456,7 @@ Subtract = partial(MultiInput, jnp.subtract)
 Multiply = partial(MultiInput, jnp.multiply)
 Divide = partial(MultiInput, jnp.divide)
 Logaddexp = partial(MultiInput, jnp.logaddexp)
+Power = partial(MultiInput, jnp.power)
 # Linear algebra functions
 Matmul = partial(MultiInput, jnp.matmul)
 Dot = partial(MultiInput, jnp.dot)

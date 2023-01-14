@@ -692,8 +692,8 @@ class DepadTest(absltest.TestCase):
 
 class ArithmeticMultiInputTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
-        inputs1 = jrand.normal(xrand.split(), shape=(8,))
-        inputs2 = jrand.normal(xrand.split(), shape=(8,))
+        inputs1 = jnp.abs(jrand.normal(xrand.split(), shape=(8,)))
+        inputs2 = jnp.abs(jrand.normal(xrand.split(), shape=(8,)))
         forward, params, states = module(*args, **kwargs)
         outputs, states = forward(params, [inputs1, inputs2], states)
         self.assertEqual((8,), outputs.shape)
@@ -701,8 +701,8 @@ class ArithmeticMultiInputTest(absltest.TestCase):
         self.assertTrue(jnp.array_equal(reference, outputs))
 
         forward_v, params_v, states_v = xnn.vectorize(module(*args, **kwargs))
-        inputs1 = jrand.normal(xrand.split(), shape=(2, 8))
-        inputs2 = jrand.normal(xrand.split(), shape=(2, 8))
+        inputs1 = jnp.abs(jrand.normal(xrand.split(), shape=(2, 8)))
+        inputs2 = jnp.abs(jrand.normal(xrand.split(), shape=(2, 8)))
         outputs, states = forward(params, [inputs1, inputs2], states)
         self.assertEqual((2, 8), outputs.shape)
 
@@ -720,6 +720,9 @@ class ArithmeticMultiInputTest(absltest.TestCase):
 
     def test_logaddexp(self):
         self.template(xnn.Logaddexp, jnp.logaddexp)
+
+    def test_power(self):
+        self.template(xnn.Power, jnp.power)
 
 
 class MatmulTest(absltest.TestCase):
