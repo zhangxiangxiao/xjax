@@ -370,9 +370,9 @@ def Reverse():
 
 
 def SingleInput(func, *args, **kwargs):
-    """Layer that feed func with inputs.
-    Used for modules that do not have params and states. Hyper-parameters are
-    stored in kwargs as a Python3 function closure."""
+    """Layer that feed func with inputs. Used for modules that do not have
+    params and states. Hyper-parameters are stored in kwargs as a Python3
+    function closure."""
     @tree_forward
     def forward(params, inputs, states):
         return func(inputs, *args, **kwargs), states
@@ -440,10 +440,9 @@ Depad = partial(SingleInput, depad)
 
 
 def MultiInput(func, *args, **kwargs):
-    """ Layer that applies func with inputs unpacked.
-
-    Used for modules that accept multiple inputs and do not have params or
-    states. Hyper-parameters are stored in kwargs as a function closure.
+    """ Layer that applies func with inputs unpacked. Used for modules that
+    accept multiple inputs and do not have params or states. Hyper-parameters
+    are stored in kwargs as a function closure.
     """
     def forward(params, inputs, states):
         def wrapped_func(*inputs):
@@ -461,11 +460,35 @@ Power = partial(MultiInput, jnp.power)
 Matmul = partial(MultiInput, jnp.matmul)
 Dot = partial(MultiInput, jnp.dot)
 
+def blse(x, p, axis=None):
+    """Binary log-sum-exp loss. When `axis == None`, it operates in binary mode
+    blse(x,p) = ln(1+p^2*exp(-x)+(1-p)^2*exp(x)) - ln(1+2p(1-p)),
+    when `axis != None`, it calcuates in categorical mode
+    blse(x,p) = ln(1+sum_i[p_i^2*exp(-x_i)]+sum_i[(1-p_i)^2*exp(x_i)]) -
+                ln(1+sum_i[2p_i(1-p_i)])
+
+    Args:
+      x: the unnormalized logit.
+      p: the target probability.
+      axis: the categorical axis. If `None`, will operate in binary mode.
+
+    Returns:
+      outputs: the output of the binary log-sum-exp loss.
+    """
+    a = jnp.stack((-x, x), axis=-1)
+    b_sqrt = jnp.stack((p, 1-p), axis=-1)
+    blse_pos = jnn.logsumexp(a=a, axis=-1, b=jnp.square(b_sqrt))
+    blse_neg = 2 * jnp.prod(b_sqrt, axis=-1)
+    if axis is not None:
+        blse_pos = jnn.logsumexp(blse_pos, axis=axis)
+        blse_neg = jnp.sum(blse_neg, axis=axis)
+    return jnn.softplus(blse_pos) - jnp.log1p(blse_neg)
+BLSE = partial(MultiInput, blse)
+
 
 def ListInput(func, *args, **kwargs):
-    """
-    Layer that applies func to an input which is a list. Hypaer-parameters are
-    stored in kwargs as a function closure.
+    """ Layer that applies func to an input which is a list. Hypaer-parameters
+    are stored in kwargs as a function closure.
     """
     def forward(params, inputs, states):
         def wrapped_func(*inputs):

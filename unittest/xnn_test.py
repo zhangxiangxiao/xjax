@@ -767,6 +767,43 @@ class DotTest(absltest.TestCase):
         self.assertEqual((2, 8), outputs.shape)
 
 
+class BLSETest(absltest.TestCase):
+    def setUp(self):
+        self.binary_module = xnn.BLSE()
+        self.categorical_module = xnn.BLSE(axis=-1)
+
+    def test_binary(self):
+        x = jrand.normal(xrand.split(), shape=(8, 4))
+        p = jrand.uniform(xrand.split(), shape=(4,))
+        forward, params, states = self.binary_module
+        outputs, states = forward(params, [x, p], states)
+        self.assertEqual((8, 4), outputs.shape)
+        blse_sum = jnp.square(p) * jnp.exp(-x) + jnp.square(1-p) * jnp.exp(x)
+        reference = jnp.log1p(blse_sum) - jnp.log1p(2*p*(1-p))
+        self.assertTrue(jnp.allclose(reference, outputs, rtol=1e-3))
+        forward_v, params_v, states_v = xnn.vectorize(self.binary_module)
+        x_v = jrand.normal(xrand.split(), shape=(2, 8, 4))
+        p_v = jrand.normal(xrand.split(), shape=(2, 4))
+        outputs_v, states_v = forward_v(params_v, [x_v, p_v], states_v)
+        self.assertTrue((2, 8, 4), outputs_v)
+
+    def test_categorical(self):
+        x = jrand.normal(xrand.split(), shape=(8, 4))
+        p = jrand.uniform(xrand.split(), shape=(4,))
+        forward, params, states = self.categorical_module
+        outputs, states = forward(params, [x, p], states)
+        self.assertEqual((8,), outputs.shape)
+        blse_sum = jnp.square(p) * jnp.exp(-x) + jnp.square(1-p) * jnp.exp(x)
+        reference = jnp.log1p(jnp.sum(blse_sum, axis=-1)) - jnp.log1p(jnp.sum(
+            2*p*(1-p), axis=-1))
+        self.assertTrue(jnp.allclose(reference, outputs, rtol=1e-3))
+        forward_v, params_v, states_v = xnn.vectorize(self.categorical_module)
+        x_v = jrand.normal(xrand.split(), shape=(2, 8, 4))
+        p_v = jrand.normal(xrand.split(), shape=(2, 4))
+        outputs_v, states_v = forward_v(params_v, [x_v, p_v], states_v)
+        self.assertTrue((2, 8), outputs_v)
+
+
 class ListInputTest(absltest.TestCase):
     def template(self, module, func, *args, **kwargs):
         forward, params, states = module(*args, **kwargs)
